@@ -100,11 +100,11 @@ body { font-family: 'Nunito', sans-serif; background: var(--bg); color: var(--te
   position: absolute; width: 20px; height: 20px; border-radius: 50%; border: 2px solid #fff;
   display: flex; align-items: center; justify-content: center; font-size: 0.62rem; font-weight: 900;
   color: #fff; cursor: pointer; transform: translate(-50%, -50%);
-  transition: transform 0.15s, box-shadow 0.15s; box-shadow: 0 2px 8px rgba(0,0,0,0.18); z-index: 2; user-select: none;
+  transition: box-shadow 0.15s; box-shadow: 0 2px 8px rgba(0,0,0,0.18); z-index: 2; user-select: none;
 }
-.pin:hover { transform: translate(-50%, calc(-100% - 6px)); z-index: 5; }
-.pin.active { z-index: 3; transform: translate(-50%, -50%); animation: pulsePinBrightness 1.4s ease-in-out infinite; }
-.pin.active:hover { transform: translate(-50%, calc(-100% - 6px)); z-index: 5; animation: none; }
+.pin:hover { z-index: 5; box-shadow: 0 4px 16px rgba(0,0,0,0.3); }
+.pin.active { z-index: 3; animation: pulsePinBrightness 1.4s ease-in-out infinite; }
+.pin.active:hover { z-index: 5; animation: none; }
 .pin.correct { background: var(--sage) !important; }
 .pin.incorrect { background: #f28b82 !important; animation: pinShake 0.4s; }
 .pin.revealed { background: var(--gold) !important; opacity: 0.85; }
@@ -335,6 +335,20 @@ body { font-family: 'Nunito', sans-serif; background: var(--bg); color: var(--te
 .match-result-banner .banner-score { font-family: 'Lora',serif; font-size: 2rem; font-weight: 900; }
 .match-result-banner.all-correct .banner-score { color: #3a6b35; }
 .match-result-banner.has-wrong .banner-score { color: #8b2020; }
+
+/* ── Pan / Zoom viewport ── */
+.canvas-zoom-viewport {
+  overflow: hidden; border-radius: var(--radius); position: relative;
+  cursor: grab; touch-action: none;
+}
+.canvas-zoom-viewport:active { cursor: grabbing; }
+.canvas-zoom-viewport .image-canvas-wrap { cursor: inherit; }
+
+/* ── Quiz description card ── */
+.quiz-description-card {
+  background: var(--sky-light); border: 1.5px solid var(--sky); border-radius: var(--radius-sm);
+  padding: 10px 14px; font-size: 0.88rem; font-weight: 600; color: var(--text); line-height: 1.5;
+}
 
 /* ── New template picker modal ── */
 .modal-overlay {

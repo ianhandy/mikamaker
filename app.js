@@ -53,7 +53,11 @@ function setupPinFlee(canvasWrap) {
         const offset = force * MAX_FLEE;
         const ox = (dx / dist) * offset;
         const oy = (dy / dist) * offset;
-        pin.style.transform = `translate(calc(-50% + ${ox}px), calc(-50% + ${oy}px))`;
+        pin.dataset.fleeOx = ox; pin.dataset.fleeOy = oy;
+        // Check if parent canvasWrap is being pan/zoomed (has transform with scale)
+        const parentScale = canvasWrap.style.transform?.match(/scale\(([^)]+)\)/);
+        const invScale = parentScale ? 1/parseFloat(parentScale[1]) : 1;
+        pin.style.transform = `translate(calc(-50% + ${ox}px), calc(-50% + ${oy}px)) scale(${invScale})`;
 
         // Draw tether line: white outline + colored fill for visibility
         const pinColor = pin.style.background || getComputedStyle(pin).backgroundColor;
@@ -81,7 +85,10 @@ function setupPinFlee(canvasWrap) {
           pin.appendChild(tip);
         }
       } else {
-        pin.style.transform = '';
+        delete pin.dataset.fleeOx; delete pin.dataset.fleeOy;
+        const parentScale2 = canvasWrap.style.transform?.match(/scale\(([^)]+)\)/);
+        const invScale2 = parentScale2 ? 1/parseFloat(parentScale2[1]) : 1;
+        pin.style.transform = invScale2 !== 1 ? `translate(-50%, -50%) scale(${invScale2})` : '';
         pin.querySelector('.flee-tip')?.remove();
       }
     });
@@ -89,8 +96,11 @@ function setupPinFlee(canvasWrap) {
 
   function clearFlee() {
     svg.innerHTML = '';
+    const parentScale = canvasWrap.style.transform?.match(/scale\(([^)]+)\)/);
+    const invScale = parentScale ? 1/parseFloat(parentScale[1]) : 1;
     canvasWrap.querySelectorAll('.pin').forEach(p => {
-      p.style.transform = '';
+      delete p.dataset.fleeOx; delete p.dataset.fleeOy;
+      p.style.transform = invScale !== 1 ? `translate(-50%, -50%) scale(${invScale})` : '';
       p.querySelector('.flee-tip')?.remove();
     });
   }
@@ -103,13 +113,126 @@ function setupPinFlee(canvasWrap) {
   canvasWrap.addEventListener('touchend', clearFlee);
 }
 
+// ─── Pan / Zoom ──────────────────────────────────────────────────────────────
+
+function setupPanZoom(viewport, canvasWrap, pzState) {
+  const MIN_ZOOM = 1, MAX_ZOOM = 5;
+
+  function applyTransform() {
+    canvasWrap.style.transform = `translate(${pzState.panX}px, ${pzState.panY}px) scale(${pzState.zoom})`;
+    // counter-scale every pin so it stays the same visual size
+    canvasWrap.querySelectorAll('.pin').forEach(pin => {
+      // preserve flee offset if present, otherwise center
+      if (!pin.dataset.fleeOx) {
+        pin.style.transform = `translate(-50%, -50%) scale(${1/pzState.zoom})`;
+      } else {
+        const ox = parseFloat(pin.dataset.fleeOx)||0, oy = parseFloat(pin.dataset.fleeOy)||0;
+        pin.style.transform = `translate(calc(-50% + ${ox}px), calc(-50% + ${oy}px)) scale(${1/pzState.zoom})`;
+      }
+    });
+    // counter-scale pin tooltips/popups that are children of pins
+    canvasWrap.querySelectorAll('.pin-label-popup').forEach(p => {
+      p.style.transform = `translateX(-50%) scale(${1/pzState.zoom})`;
+    });
+  }
+
+  function clampPan() {
+    const vw = viewport.clientWidth, vh = viewport.clientHeight;
+    const cw = canvasWrap.scrollWidth * pzState.zoom;
+    const ch = canvasWrap.scrollHeight * pzState.zoom;
+    if (cw <= vw) pzState.panX = (vw - cw) / 2;
+    else pzState.panX = Math.min(0, Math.max(vw - cw, pzState.panX));
+    if (ch <= vh) pzState.panY = (vh - ch) / 2;
+    else pzState.panY = Math.min(0, Math.max(vh - ch, pzState.panY));
+  }
+
+  // Wheel zoom (zoom toward cursor)
+  viewport.addEventListener('wheel', e => {
+    e.preventDefault();
+    const rect = viewport.getBoundingClientRect();
+    const mx = e.clientX - rect.left, my = e.clientY - rect.top;
+    const oldZoom = pzState.zoom;
+    const delta = -e.deltaY * 0.002;
+    pzState.zoom = Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, pzState.zoom * (1 + delta)));
+    const ratio = pzState.zoom / oldZoom;
+    pzState.panX = mx - ratio * (mx - pzState.panX);
+    pzState.panY = my - ratio * (my - pzState.panY);
+    clampPan(); applyTransform();
+  }, { passive: false });
+
+  // Mouse drag to pan
+  let dragging = false, lastX, lastY;
+  viewport.addEventListener('mousedown', e => {
+    if (e.button !== 0) return;
+    // Don't start drag if clicking a pin or its children
+    if (e.target.closest('.pin')) return;
+    dragging = true; lastX = e.clientX; lastY = e.clientY;
+    viewport.style.cursor = 'grabbing';
+  });
+  window.addEventListener('mousemove', e => {
+    if (!dragging) return;
+    pzState.panX += e.clientX - lastX;
+    pzState.panY += e.clientY - lastY;
+    lastX = e.clientX; lastY = e.clientY;
+    clampPan(); applyTransform();
+  });
+  window.addEventListener('mouseup', () => {
+    if (dragging) { dragging = false; viewport.style.cursor = ''; }
+  });
+
+  // Touch: pinch zoom + drag pan
+  let touches0 = null, startDist = 0, startZoom = 1;
+  viewport.addEventListener('touchstart', e => {
+    if (e.touches.length === 2) {
+      e.preventDefault();
+      const dx = e.touches[0].clientX - e.touches[1].clientX;
+      const dy = e.touches[0].clientY - e.touches[1].clientY;
+      startDist = Math.sqrt(dx*dx + dy*dy);
+      startZoom = pzState.zoom;
+      touches0 = { x: (e.touches[0].clientX+e.touches[1].clientX)/2, y: (e.touches[0].clientY+e.touches[1].clientY)/2 };
+    } else if (e.touches.length === 1) {
+      if (e.target.closest('.pin')) return;
+      touches0 = { x: e.touches[0].clientX, y: e.touches[0].clientY, single: true };
+    }
+  }, { passive: false });
+  viewport.addEventListener('touchmove', e => {
+    if (e.touches.length === 2 && startDist) {
+      e.preventDefault();
+      const dx = e.touches[0].clientX - e.touches[1].clientX;
+      const dy = e.touches[0].clientY - e.touches[1].clientY;
+      const dist = Math.sqrt(dx*dx + dy*dy);
+      const oldZoom = pzState.zoom;
+      pzState.zoom = Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, startZoom * (dist / startDist)));
+      const rect = viewport.getBoundingClientRect();
+      const mx = (e.touches[0].clientX+e.touches[1].clientX)/2 - rect.left;
+      const my = (e.touches[0].clientY+e.touches[1].clientY)/2 - rect.top;
+      const ratio = pzState.zoom / oldZoom;
+      pzState.panX = mx - ratio * (mx - pzState.panX);
+      pzState.panY = my - ratio * (my - pzState.panY);
+      clampPan(); applyTransform();
+    } else if (e.touches.length === 1 && touches0?.single) {
+      pzState.panX += e.touches[0].clientX - touches0.x;
+      pzState.panY += e.touches[0].clientY - touches0.y;
+      touches0.x = e.touches[0].clientX; touches0.y = e.touches[0].clientY;
+      clampPan(); applyTransform();
+    }
+  }, { passive: false });
+  viewport.addEventListener('touchend', () => { startDist = 0; touches0 = null; });
+
+  // Initial
+  clampPan();
+  applyTransform();
+
+  return { applyTransform, clampPan };
+}
+
 // ─── App State ────────────────────────────────────────────────────────────────
 
 const state = {
   templates: loadTemplates(),
   screen: "home",         // home | creator | matchCreator | quizSetup | quiz | results | matchQuiz
   showTypePicker: false,
-  creator: { template: null, imageData: null, pins: [], editingPinId: null, name: "" },
+  creator: { template: null, imageData: null, pins: [], editingPinId: null, name: "", description: "", pz: {zoom:1,panX:0,panY:0} },
   matchCreator: { template: null, name: "", numCols: 2, numRows: 3, headers: ["Column 1","Column 2"], cells: [] },
   quizTemplate: null,
   quiz: { template:null, settings:{order:"sequential",mode:"freetext"}, queue:[], current:0, results:{}, answered:new Set(), mcOptions:[], mcAnswered:null, feedback:null, hoveredPinId:null },
@@ -154,7 +277,7 @@ function renderTypePicker() {
   diagramCard.innerHTML = `<div class="type-icon">📍</div><h4>Diagram</h4><p>Upload an image and place labeled pins on it</p>`;
   diagramCard.onclick = () => {
     state.showTypePicker = false;
-    state.creator = { template:null, imageData:null, pins:[], editingPinId:null, name:"" };
+    state.creator = { template:null, imageData:null, pins:[], editingPinId:null, name:"", description:"", pz:{zoom:1,panX:0,panY:0} };
     navigate("creator");
   };
 
@@ -234,7 +357,7 @@ function renderHome() {
         state.matchCreator = { template:t, name:t.name, numCols:t.columns.length, numRows:t.rows.length, headers:[...t.columns], cells:t.rows.map(r=>r.map(c=>({...c}))) };
         navigate("matchCreator");
       } else {
-        state.creator = { template:t, imageData:t.imageData, pins:t.pins.map(p=>({...p})), editingPinId:null, name:t.name };
+        state.creator = { template:t, imageData:t.imageData, pins:t.pins.map(p=>({...p})), editingPinId:null, name:t.name, description:t.description||"", pz:{zoom:1,panX:0,panY:0} };
         navigate("creator");
       }
     };
@@ -299,6 +422,7 @@ function loadImageFile(file) { readImageFile(file, d=>{ state.creator.imageData=
 
 function renderCanvasEditor() {
   const c = state.creator;
+  const pz = c.pz;
   const card = el("div","card");
   const headerRow = el("div","row"); headerRow.style.marginBottom="12px";
   const lbl = el("div","section-label flex1",{text:"Place Labels — click the image to add a pin"});
@@ -308,20 +432,35 @@ function renderCanvasEditor() {
 
   const row = el("div","creator-canvas-row");
   const canvasCol = el("div","creator-canvas-col");
+
+  const viewport = el("div","canvas-zoom-viewport");
   const canvasWrap = el("div","image-canvas-wrap"); canvasWrap.id="canvas-wrap";
+  canvasWrap.style.transformOrigin = "0 0";
   const img = el("img",null,{src:c.imageData,alt:"diagram"}); img.draggable=false;
   canvasWrap.appendChild(img);
   c.pins.filter(p=>p.label||p.id===c.editingPinId).forEach((pin,i)=>canvasWrap.appendChild(makeCreatorPin(pin,i)));
-  canvasWrap.onclick=e=>{
+
+  // Track mousedown position to distinguish click from drag
+  let mdX, mdY;
+  canvasWrap.addEventListener('mousedown', e => { mdX = e.clientX; mdY = e.clientY; });
+  canvasWrap.addEventListener('click', e => {
+    // Ignore if it was a drag (moved more than 5px)
+    if (Math.abs(e.clientX - mdX) > 5 || Math.abs(e.clientY - mdY) > 5) return;
     if(c.editingPinId) return;
+    if(e.target.closest('.pin')) return;
     const rect=img.getBoundingClientRect();
     const x=((e.clientX-rect.left)/rect.width)*100;
     const y=((e.clientY-rect.top)/rect.height)*100;
     const newPin={id:generateId(),x,y,label:""};
     c.pins.push(newPin); c.editingPinId=newPin.id; render();
     setTimeout(()=>document.getElementById("pin-edit-input")?.focus(),30);
-  };
-  canvasCol.appendChild(canvasWrap);
+  });
+
+  viewport.appendChild(canvasWrap);
+  canvasCol.appendChild(viewport);
+
+  // Set up pan/zoom after appending to DOM (need layout dimensions)
+  setTimeout(() => setupPanZoom(viewport, canvasWrap, pz), 0);
 
   if (c.editingPinId) {
     const editRow=el("div","row mt8");
@@ -345,6 +484,13 @@ function renderCanvasEditor() {
     item.append(dot,span,btnX); pinList.appendChild(item);
   });
   sidebar.appendChild(pinList);
+
+  sidebar.appendChild(el("div","section-label mt16",{text:"Quiz Description"}));
+  const descInput = el("textarea","input mt8",{placeholder:"Optional — shown at the top of the quiz…"});
+  descInput.style.fontSize="0.85rem"; descInput.rows=3; descInput.style.resize="vertical";
+  descInput.value = c.description || "";
+  descInput.oninput = e => { state.creator.description = e.target.value; };
+  sidebar.appendChild(descInput);
 
   row.append(canvasCol,sidebar); card.appendChild(row);
   return card;
@@ -384,7 +530,7 @@ function saveCreatorTemplate() {
   if(!c.imageData){alert("Please upload an image.");return;}
   const labeledPins=c.pins.filter(p=>p.label);
   if(labeledPins.length<2){alert("Add at least 2 labels.");return;}
-  const tpl={id:c.template?.id||generateId(),type:"diagram",name,imageData:c.imageData,pins:labeledPins};
+  const tpl={id:c.template?.id||generateId(),type:"diagram",name,description:c.description||"",imageData:c.imageData,pins:labeledPins};
   const idx=state.templates.findIndex(t=>t.id===tpl.id);
   if(idx>=0) state.templates[idx]=tpl; else state.templates.push(tpl);
   saveTemplates(state.templates); navigate("home");
@@ -548,6 +694,12 @@ function renderQuizSetup() {
   const h2=el("h2",null,{text:state.quizTemplate.name});
   topbar.append(btnBack,h2); wrap.appendChild(topbar);
 
+  if (state.quizTemplate.description) {
+    const descCard = el("div","quiz-description-card"); descCard.style.marginBottom="16px";
+    descCard.textContent = state.quizTemplate.description;
+    wrap.appendChild(descCard);
+  }
+
   const card=el("div","card"); card.style.maxWidth="480px";
   const orderLabel=el("div","section-label",{text:"Question Order"});
   const orderToggle=makeToggle([{val:"sequential",label:"Sequential"},{val:"random",label:"Random"}],"sequential");
@@ -583,7 +735,7 @@ function makeToggle(options, defaultVal) {
 function startDiagramQuiz(template, settings) {
   let queue=[...template.pins];
   if(settings.order==="random") queue=shuffle(queue);
-  state.quiz={template,settings,queue,current:0,results:{},answered:new Set(),mcOptions:[],mcAnswered:null,feedback:null,hoveredPinId:null};
+  state.quiz={template,settings,queue,current:0,results:{},answered:new Set(),mcOptions:[],mcAnswered:null,feedback:null,hoveredPinId:null,pz:{zoom:1,panX:0,panY:0}};
   generateMCOptions(); navigate("quiz");
 }
 
@@ -616,7 +768,11 @@ function renderQuiz() {
 
   const mainRow=el("div","quiz-main-row");
   const diagCol=el("div","quiz-diagram-col");
+
+  const pz = q.pz;
+  const viewport = el("div","canvas-zoom-viewport");
   const canvasWrap=el("div","image-canvas-wrap no-crosshair");
+  canvasWrap.style.transformOrigin = "0 0";
   const img=el("img",null,{src:q.template.imageData,alt:"diagram"}); img.draggable=false;
   canvasWrap.appendChild(img);
 
@@ -632,9 +788,17 @@ function renderQuiz() {
     canvasWrap.appendChild(pinEl);
   });
   setupPinFlee(canvasWrap);
-  diagCol.appendChild(canvasWrap); mainRow.appendChild(diagCol);
+  viewport.appendChild(canvasWrap);
+  diagCol.appendChild(viewport);
+  setTimeout(() => setupPanZoom(viewport, canvasWrap, pz), 0);
+  mainRow.appendChild(diagCol);
 
   const panelCol=el("div","quiz-panel-col col");
+  if (q.template.description) {
+    const descCard = el("div","quiz-description-card");
+    descCard.textContent = q.template.description;
+    panelCol.appendChild(descCard);
+  }
   const listCard=el("div","card"); listCard.style.padding="16px";
   const listLabel=el("div","section-label",{text:"Labels"}); listLabel.style.marginBottom="8px";
   const pinList=el("div","pin-list"); pinList.style.maxHeight="220px"; pinList.style.overflowY="auto";
@@ -779,7 +943,7 @@ function retryMissed(missedIds) {
   const q=state.quiz;
   const pins=missedIds.map(id=>q.template.pins.find(p=>p.id===id)).filter(Boolean);
   const queue=q.settings.order==="random"?shuffle(pins):pins;
-  state.quiz={...q,queue,current:0,results:{},answered:new Set(),mcOptions:[],mcAnswered:null,feedback:null,hoveredPinId:null};
+  state.quiz={...q,queue,current:0,results:{},answered:new Set(),mcOptions:[],mcAnswered:null,feedback:null,hoveredPinId:null,pz:{zoom:1,panX:0,panY:0}};
   generateMCOptions(); navigate("quiz");
 }
 

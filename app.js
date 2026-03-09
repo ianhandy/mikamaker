@@ -1,7 +1,31 @@
 // ─── Constants & Helpers ─────────────────────────────────────────────────────
 
 const STORAGE_KEY = "diagramQuizTemplates";
-const PIN_COLORS = ["#e8856a","#9ec5d8","#a8c5a0","#b8a8d0","#e8c56a","#f2b89a","#7ecac2","#d4a0c0","#a0b8d8","#c8d490"];
+const PIN_COLORS = ["#e86a22","#f0ab30","#8ab84a","#d8602a","#e8c040","#c85020","#a8c84a","#f07840","#60aa50","#d04010"];
+
+// ─── Title Flee ───────────────────────────────────────────────────────────────
+
+let _titleFleeSpans = [];
+(function initTitleFlee() {
+  const FLEE_RADIUS = 90;
+  const MAX_FLEE = 14;
+  document.addEventListener('mousemove', e => {
+    _titleFleeSpans.forEach(sp => {
+      const r = sp.getBoundingClientRect();
+      const cx = r.left + r.width / 2, cy = r.top + r.height / 2;
+      const dx = cx - e.clientX, dy = cy - e.clientY;
+      const dist = Math.sqrt(dx*dx + dy*dy);
+      if (dist < FLEE_RADIUS && dist > 0) {
+        const force = (FLEE_RADIUS - dist) / FLEE_RADIUS;
+        const ox = (dx / dist) * force * MAX_FLEE;
+        const oy = (dy / dist) * force * MAX_FLEE;
+        sp.style.transform = `translate(${ox}px,${oy}px)`;
+      } else {
+        sp.style.transform = '';
+      }
+    });
+  });
+})();
 
 function pinColor(i) { return PIN_COLORS[i % PIN_COLORS.length]; }
 function generateId() { return Math.random().toString(36).slice(2) + Date.now().toString(36); }
@@ -28,18 +52,12 @@ function readImageFile(file, cb) {
 
 function setupPinFlee(canvasWrap) {
   const FLEE_RADIUS = 52; // px — distance at which pins start fleeing
-  const MAX_FLEE = 34;    // px — max displacement when mouse is right on top
-
-  // SVG overlay for tether lines
-  const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
-  svg.style.cssText = 'position:absolute;inset:0;width:100%;height:100%;pointer-events:none;z-index:1;overflow:visible;';
-  canvasWrap.appendChild(svg);
+  const MAX_FLEE = 5;     // px — max displacement when mouse is right on top
 
   function updateFlee(clientX, clientY) {
     const rect = canvasWrap.getBoundingClientRect();
     const mx = clientX - rect.left;
     const my = clientY - rect.top;
-    svg.innerHTML = ''; // clear tether lines
 
     canvasWrap.querySelectorAll('.pin').forEach(pin => {
       const px = (parseFloat(pin.style.left) / 100) * rect.width;
@@ -59,24 +77,6 @@ function setupPinFlee(canvasWrap) {
         const invScale = parentScale ? 1/parseFloat(parentScale[1]) : 1;
         pin.style.transform = `translate(calc(-50% + ${ox}px), calc(-50% + ${oy}px)) scale(${invScale})`;
 
-        // Draw tether line: white outline + colored fill for visibility
-        const pinColor = pin.style.background || getComputedStyle(pin).backgroundColor;
-        const x1 = px, y1 = py, x2 = px + ox, y2 = py + oy;
-        const outline = document.createElementNS('http://www.w3.org/2000/svg', 'line');
-        outline.setAttribute('x1', x1); outline.setAttribute('y1', y1);
-        outline.setAttribute('x2', x2); outline.setAttribute('y2', y2);
-        outline.setAttribute('stroke', '#fff');
-        outline.setAttribute('stroke-width', '4');
-        outline.setAttribute('stroke-opacity', String(force * 0.55));
-        svg.appendChild(outline);
-        const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
-        line.setAttribute('x1', x1); line.setAttribute('y1', y1);
-        line.setAttribute('x2', x2); line.setAttribute('y2', y2);
-        line.setAttribute('stroke', pinColor);
-        line.setAttribute('stroke-width', '2');
-        line.setAttribute('stroke-opacity', String(force * 0.9));
-        svg.appendChild(line);
-
         // Show flee tooltip if the pin has one and doesn't already have a permanent tooltip
         if (pin.dataset.fleeTooltip !== undefined && !pin.querySelector('.pin-tooltip')) {
           const tip = document.createElement('div');
@@ -95,7 +95,6 @@ function setupPinFlee(canvasWrap) {
   }
 
   function clearFlee() {
-    svg.innerHTML = '';
     const parentScale = canvasWrap.style.transform?.match(/scale\(([^)]+)\)/);
     const invScale = parentScale ? 1/parseFloat(parentScale[1]) : 1;
     canvasWrap.querySelectorAll('.pin').forEach(p => {
@@ -130,10 +129,7 @@ function setupPanZoom(viewport, canvasWrap, pzState) {
         pin.style.transform = `translate(calc(-50% + ${ox}px), calc(-50% + ${oy}px)) scale(${1/pzState.zoom})`;
       }
     });
-    // counter-scale pin tooltips/popups that are children of pins
-    canvasWrap.querySelectorAll('.pin-label-popup').forEach(p => {
-      p.style.transform = `translateX(-50%) scale(${1/pzState.zoom})`;
-    });
+    // pin-label-popup is inside the counter-scaled pin — it inherits the right scale already
   }
 
   function clampPan() {
@@ -256,7 +252,14 @@ function render() {
   }
 
   const header = el("div","header");
-  header.innerHTML = `<h1>Mika<span>Maker</span></h1><p>Make-A-Mika</p>`;
+  const h1 = el("h1");
+  const mikaWrap = el("span","title-mika");
+  const makerWrap = el("span","title-maker");
+  [...'Mika'].forEach(ch => { const s=el("span","fc",{text:ch}); s.style.display="inline-block"; mikaWrap.appendChild(s); });
+  [...'Maker'].forEach(ch => { const s=el("span","fc",{text:ch}); s.style.display="inline-block"; makerWrap.appendChild(s); });
+  h1.append(mikaWrap, makerWrap);
+  _titleFleeSpans = [...h1.querySelectorAll('.fc')];
+  header.append(h1, el("p",null,{text:"Make-A-Mika"}));
   root.appendChild(header);
 
   const map = { home:renderHome, creator:renderCreator, matchCreator:renderMatchCreator, quizSetup:renderQuizSetup, quiz:renderQuiz, results:renderResults, matchQuiz:renderMatchQuiz };
@@ -438,7 +441,7 @@ function renderCanvasEditor() {
   canvasWrap.style.transformOrigin = "0 0";
   const img = el("img",null,{src:c.imageData,alt:"diagram"}); img.draggable=false;
   canvasWrap.appendChild(img);
-  c.pins.filter(p=>p.label||p.id===c.editingPinId).forEach((pin,i)=>canvasWrap.appendChild(makeCreatorPin(pin,i)));
+  c.pins.filter(p=>p.label||p.id===c.editingPinId).forEach((pin,i)=>canvasWrap.appendChild(makeCreatorPin(pin,i,img)));
 
   // Track mousedown position to distinguish click from drag
   let mdX, mdY;
@@ -459,8 +462,19 @@ function renderCanvasEditor() {
   viewport.appendChild(canvasWrap);
   canvasCol.appendChild(viewport);
 
+  // Reset zoom button
+  const pzRef = {};
+  const zoomRow = el("div","row mt8"); zoomRow.style.justifyContent = "flex-end";
+  const btnResetZoom = el("button","btn btn-ghost btn-sm",{text:"↺ 100%"});
+  btnResetZoom.onclick = () => {
+    pz.zoom = 1; pz.panX = 0; pz.panY = 0;
+    pzRef.clamp?.(); pzRef.apply?.();
+  };
+  zoomRow.appendChild(btnResetZoom);
+  canvasCol.appendChild(zoomRow);
+
   // Set up pan/zoom after appending to DOM (need layout dimensions)
-  setTimeout(() => setupPanZoom(viewport, canvasWrap, pz), 0);
+  setTimeout(() => { const r = setupPanZoom(viewport, canvasWrap, pz); pzRef.apply = r.applyTransform; pzRef.clamp = r.clampPan; }, 0);
 
   if (c.editingPinId) {
     const editRow=el("div","row mt8");
@@ -496,7 +510,7 @@ function renderCanvasEditor() {
   return card;
 }
 
-function makeCreatorPin(pin,i) {
+function makeCreatorPin(pin,i,img) {
   const c=state.creator;
   const isEditing=pin.id===c.editingPinId;
   const num=c.pins.filter((p,idx)=>p.label&&idx<c.pins.indexOf(pin)).length+1;
@@ -508,6 +522,28 @@ function makeCreatorPin(pin,i) {
     const input=el("input",null,{type:"text",placeholder:"Label…",id:"pin-edit-input"});
     input.onkeydown=e=>{if(e.key==="Enter")confirmPinLabel();if(e.key==="Escape")cancelPinEdit();};
     popup.appendChild(input); pinEl.appendChild(popup);
+  } else {
+    // Drag to reposition
+    pinEl.style.cursor = 'grab';
+    pinEl.addEventListener('mousedown', e => {
+      if (e.button !== 0) return;
+      e.stopPropagation(); // prevent viewport pan from starting
+      pinEl.style.cursor = 'grabbing';
+      const onMove = e => {
+        const rect = img.getBoundingClientRect();
+        const x = Math.max(0, Math.min(100, (e.clientX - rect.left) / rect.width * 100));
+        const y = Math.max(0, Math.min(100, (e.clientY - rect.top) / rect.height * 100));
+        pin.x = x; pin.y = y;
+        pinEl.style.left = `${x}%`; pinEl.style.top = `${y}%`;
+      };
+      const onUp = () => {
+        pinEl.style.cursor = 'grab';
+        window.removeEventListener('mousemove', onMove);
+        window.removeEventListener('mouseup', onUp);
+      };
+      window.addEventListener('mousemove', onMove);
+      window.addEventListener('mouseup', onUp);
+    });
   }
   return pinEl;
 }
@@ -733,16 +769,16 @@ function makeToggle(options, defaultVal) {
 // ─── Diagram Quiz ─────────────────────────────────────────────────────────────
 
 function startDiagramQuiz(template, settings) {
-  let queue=[...template.pins];
-  if(settings.order==="random") queue=shuffle(queue);
-  state.quiz={template,settings,queue,current:0,results:{},answered:new Set(),mcOptions:[],mcAnswered:null,feedback:null,hoveredPinId:null,pz:{zoom:1,panX:0,panY:0}};
+  let remaining=[...template.pins];
+  if(settings.order==="random") remaining=shuffle(remaining);
+  state.quiz={template,settings,remaining,results:{},answered:new Set(),mcOptions:[],mcAnswered:null,feedback:null,hoveredPinId:null,pz:{zoom:1,panX:0,panY:0}};
   generateMCOptions(); navigate("quiz");
 }
 
 function generateMCOptions() {
   const q=state.quiz;
   if(q.settings.mode!=="multiplechoice") return;
-  const pin=q.queue[q.current]; if(!pin) return;
+  const pin=q.remaining[0]; if(!pin) return;
   const others=q.template.pins.filter(p=>p.id!==pin.id).map(p=>p.label);
   q.mcOptions=shuffle([pin.label,...shuffle(others).slice(0,3)]);
   q.mcAnswered=null;
@@ -750,21 +786,25 @@ function generateMCOptions() {
 
 function renderQuiz() {
   const q=state.quiz;
-  const pin=q.queue[q.current];
+  const pin=q.remaining[0];
   if(!pin){finishDiagramQuiz();return el("div");}
 
   const wrap=el("div");
   const topbar=el("div","topbar");
   const progWrap=el("div","flex1");
   const doneCount=Object.keys(q.results).length;
-  const total=q.queue.length;
+  const total=q.template.pins.length;
   const progInfo=el("div","row"); progInfo.style.marginBottom="6px";
   const progText=el("span","text-muted",{text:`${doneCount} / ${total} answered`}); progText.style.fontSize="0.82rem";
   const badge=el("span","badge badge-coral",{text:q.template.name}); badge.style.marginLeft="auto";
   progInfo.append(progText,badge);
   const barWrap=el("div","progress-bar-wrap");
   const barFill=el("div","progress-bar-fill"); barFill.style.width=`${Math.round((doneCount/total)*100)}%`;
-  barWrap.appendChild(barFill); progWrap.append(progInfo,barWrap); topbar.appendChild(progWrap); wrap.appendChild(topbar);
+  barWrap.appendChild(barFill); progWrap.append(progInfo,barWrap);
+  const btnQuit=el("button","btn btn-ghost btn-sm",{text:"✕ Quit"});
+  btnQuit.style.alignSelf="flex-start"; btnQuit.style.flexShrink="0";
+  btnQuit.onclick=()=>{ if(confirm("Quit the quiz? Your progress will be lost.")) navigate("home"); };
+  topbar.append(progWrap,btnQuit); wrap.appendChild(topbar);
 
   const mainRow=el("div","quiz-main-row");
   const diagCol=el("div","quiz-diagram-col");
@@ -776,13 +816,13 @@ function renderQuiz() {
   const img=el("img",null,{src:q.template.imageData,alt:"diagram"}); img.draggable=false;
   canvasWrap.appendChild(img);
 
-  q.queue.forEach((p,i)=>{
+  q.template.pins.forEach((p,i)=>{
     const status=q.results[p.id]; const isActive=p.id===pin.id;
     const classes=["pin"]; if(isActive)classes.push("active"); if(status==="correct")classes.push("correct"); else if(status==="wrong")classes.push("incorrect"); else if(status==="revealed")classes.push("revealed"); else if(status==="skipped")classes.push("skipped-pin");
     const pinEl=el("div",classes.join(" "),{text:String(i+1)});
     pinEl.style.left=`${p.x}%`; pinEl.style.top=`${p.y}%`;
-    if(!status) { pinEl.style.background=pinColor(i); pinEl.dataset.fleeTooltip='?'; }
-    if(status||q.hoveredPinId===p.id){ const tip=el("div","pin-tooltip",{text:status?p.label:"?"}); pinEl.appendChild(tip); }
+    if(!status) { pinEl.style.background=pinColor(i); }
+    if(q.hoveredPinId===p.id && status){ const tip=el("div","pin-tooltip",{text:p.label}); pinEl.appendChild(tip); }
     pinEl.onmouseenter=()=>{q.hoveredPinId=p.id;rerenderQuizPins(canvasWrap,img);};
     pinEl.onmouseleave=()=>{q.hoveredPinId=null;rerenderQuizPins(canvasWrap,img);};
     canvasWrap.appendChild(pinEl);
@@ -802,12 +842,12 @@ function renderQuiz() {
   const listCard=el("div","card"); listCard.style.padding="16px";
   const listLabel=el("div","section-label",{text:"Labels"}); listLabel.style.marginBottom="8px";
   const pinList=el("div","pin-list"); pinList.style.maxHeight="220px"; pinList.style.overflowY="auto";
-  q.queue.forEach((p,i)=>{
+  q.template.pins.forEach((p,i)=>{
     const status=q.results[p.id]; const isActive=p.id===pin.id;
     const item=el("div",`pin-list-item${isActive?" active-item":""}`);
     const dot=el("div","pin-dot",{text:String(i+1)});
     dot.style.background=status==="correct"?"var(--sage)":status==="revealed"?"var(--gold)":status==="wrong"?"#f28b82":pinColor(i);
-    const labelText=status?p.label:isActive?"← Answer this":"?";
+    const labelText=status?p.label:isActive?"← Answer this":"—";
     const span=el("span","pin-item-label",{text:labelText}); if(!status&&!isActive) span.style.color="var(--text-muted)";
     item.append(dot,span);
     if(status==="correct") item.appendChild(el("span",null,{text:"✅"}));
@@ -817,7 +857,7 @@ function renderQuiz() {
   listCard.append(listLabel,pinList); panelCol.appendChild(listCard);
 
   const answerCard=el("div","card"); answerCard.style.padding="16px";
-  const qLabel=el("div","section-label",{text:`What is pin #${q.queue.indexOf(pin)+1}?`}); qLabel.style.marginBottom="8px";
+  const qLabel=el("div","section-label",{text:`What is pin #${q.template.pins.indexOf(pin)+1}?`}); qLabel.style.marginBottom="8px";
   answerCard.appendChild(qLabel);
 
   if(q.settings.mode==="freetext"){
@@ -846,6 +886,7 @@ function renderQuiz() {
 
   const skipRow=el("div","row mt16");
   const btnSkip=el("button","btn btn-sky btn-sm flex1",{text:"⏭ Skip"}); btnSkip.style.justifyContent="center"; btnSkip.onclick=handleSkip;
+  if(q.remaining.length<=1) btnSkip.disabled=true;
   const btnReveal=el("button","btn btn-ghost btn-sm flex1",{text:"💡 Reveal"}); btnReveal.style.justifyContent="center"; btnReveal.onclick=handleReveal;
   skipRow.append(btnSkip,btnReveal); answerCard.appendChild(skipRow);
 
@@ -855,14 +896,14 @@ function renderQuiz() {
 
 function rerenderQuizPins(canvasWrap,img) {
   canvasWrap.querySelectorAll(".pin").forEach(p=>p.remove());
-  const q=state.quiz; const pin=q.queue[q.current];
-  q.queue.forEach((p,i)=>{
+  const q=state.quiz; const pin=q.remaining[0];
+  q.template.pins.forEach((p,i)=>{
     const status=q.results[p.id]; const isActive=p.id===pin?.id;
     const classes=["pin"]; if(isActive)classes.push("active"); if(status==="correct")classes.push("correct"); else if(status==="wrong")classes.push("incorrect"); else if(status==="revealed")classes.push("revealed"); else if(status==="skipped")classes.push("skipped-pin");
     const pinEl=el("div",classes.join(" "),{text:String(i+1)});
     pinEl.style.left=`${p.x}%`; pinEl.style.top=`${p.y}%`;
-    if(!status) { pinEl.style.background=pinColor(i); pinEl.dataset.fleeTooltip='?'; }
-    if(status||q.hoveredPinId===p.id){ const tip=el("div","pin-tooltip",{text:status?p.label:"?"}); pinEl.appendChild(tip); }
+    if(!status) { pinEl.style.background=pinColor(i); }
+    if(q.hoveredPinId===p.id && status){ const tip=el("div","pin-tooltip",{text:p.label}); pinEl.appendChild(tip); }
     pinEl.onmouseenter=()=>{q.hoveredPinId=p.id;rerenderQuizPins(canvasWrap,img);};
     pinEl.onmouseleave=()=>{q.hoveredPinId=null;rerenderQuizPins(canvasWrap,img);};
     canvasWrap.appendChild(pinEl);
@@ -871,13 +912,13 @@ function rerenderQuizPins(canvasWrap,img) {
 
 function markDiagramResult(pinId,status) {
   const q=state.quiz; q.results[pinId]=status; q.answered.add(pinId); q.feedback=null; q.mcAnswered=null;
-  q.current++;
-  if(q.current>=q.queue.length) setTimeout(()=>finishDiagramQuiz(),400);
+  q.remaining.shift(); // remove the answered pin from the front
+  if(q.remaining.length===0) setTimeout(()=>finishDiagramQuiz(),400);
   else { generateMCOptions(); render(); }
 }
 
 function handleTextSubmit() {
-  const q=state.quiz; const pin=q.queue[q.current];
+  const q=state.quiz; const pin=q.remaining[0];
   const input=document.getElementById("quiz-text-input"); if(!input||!input.value.trim()) return;
   const correct=input.value.trim().toLowerCase()===pin.label.toLowerCase();
   q.feedback=correct?"correct":"wrong";
@@ -886,16 +927,19 @@ function handleTextSubmit() {
 }
 
 function handleMCClick(option) {
-  const q=state.quiz; const pin=q.queue[q.current]; if(q.mcAnswered) return;
+  const q=state.quiz; const pin=q.remaining[0]; if(q.mcAnswered) return;
   const correct=option.toLowerCase()===pin.label.toLowerCase(); q.mcAnswered=option; render();
   if(correct) setTimeout(()=>markDiagramResult(pin.id,"correct"),900);
 }
 
 function handleSkip() {
-  const q=state.quiz; const skipped=q.queue.splice(q.current,1)[0]; q.queue.push(skipped); q.feedback=null; q.mcAnswered=null; generateMCOptions(); render();
+  const q=state.quiz;
+  if(q.remaining.length<=1) return; // only one left — nowhere to skip to
+  q.remaining.push(q.remaining.shift()); // move front to back
+  q.feedback=null; q.mcAnswered=null; generateMCOptions(); render();
 }
 
-function handleReveal() { const q=state.quiz; markDiagramResult(q.queue[q.current].id,"revealed"); }
+function handleReveal() { const q=state.quiz; markDiagramResult(q.remaining[0].id,"revealed"); }
 
 function finishDiagramQuiz() { state.resultsData={...state.quiz.results}; navigate("results"); }
 

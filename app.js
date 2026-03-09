@@ -245,6 +245,7 @@ function setupPanZoom(viewport, canvasWrap, pzState) {
 
 const state = {
   templates: loadTemplates(),
+  defaultTemplates: [],
   screen: "home",         // home | creator | matchCreator | quizSetup | quiz | results | matchQuiz
   showTypePicker: false,
   creator: { template: null, imageData: null, pins: [], editingPinId: null, name: "", description: "", pz: {zoom:1,panX:0,panY:0} },
@@ -351,49 +352,97 @@ function renderHome() {
   if (!state.templates.length) {
     const empty = el("div","card mt24 empty-state");
     empty.innerHTML = `<div class="empty-icon">🫀</div><p>No templates yet. Create one or import a JSON file.</p>`;
-    wrap.appendChild(empty); return wrap;
+    wrap.appendChild(empty);
+  } else {
+    const grid = el("div","template-grid");
+    state.templates.forEach(t => {
+      const card = el("div","template-card");
+      const isMatch = t.type === "match";
+
+      const thumb = el("div", isMatch ? "template-card-thumb match-thumb" : "template-card-thumb");
+      if (isMatch) { thumb.innerHTML = `<span style="font-size:2rem">🔀</span>`; }
+      else if (t.imageData) { const img=el("img",null,{src:t.imageData,alt:t.name}); thumb.appendChild(img); }
+      else { thumb.textContent="🖼️"; }
+
+      const h3 = el("h3",null,{text:t.name});
+      const badge = el("span", isMatch?"badge badge-lavender":"badge badge-coral", {text: isMatch?"Match":"Diagram"});
+      badge.style.marginBottom="4px";
+      const p = el("p",null,{text: isMatch ? `${t.columns.length} cols · ${t.rows.length} rows` : `${t.pins.length} label${t.pins.length!==1?"s":""}`});
+
+      const actions = el("div","template-card-actions");
+      const btnQuiz = el("button","btn btn-primary btn-sm",{text:"▶ Quiz"});
+      btnQuiz.onclick = e => { e.stopPropagation(); if(isMatch) startMatchQuiz(t); else { state.quizTemplate=t; navigate("quizSetup"); } };
+      const btnEdit = el("button","btn btn-ghost btn-sm",{text:"✏ Edit"});
+      btnEdit.onclick = e => {
+        e.stopPropagation();
+        if (isMatch) {
+          state.matchCreator = { template:t, name:t.name, numCols:t.columns.length, numRows:t.rows.length, headers:[...t.columns], cells:t.rows.map(r=>r.map(c=>({...c}))) };
+          navigate("matchCreator");
+        } else {
+          state.creator = { template:t, imageData:t.imageData, pins:t.pins.map(p=>({...p})), editingPinId:null, name:t.name, description:t.description||"", pz:{zoom:1,panX:0,panY:0} };
+          navigate("creator");
+        }
+      };
+      const btnExport = el("button","btn btn-ghost btn-sm",{text:"⬇"});
+      btnExport.onclick = e => { e.stopPropagation(); exportTemplate(t); };
+      const btnDel = el("button","btn btn-danger btn-sm",{text:"🗑"});
+      btnDel.onclick = e => { e.stopPropagation(); if(confirm(`Delete "${t.name}"?`)){ state.templates=state.templates.filter(x=>x.id!==t.id); saveTemplates(state.templates); render(); } };
+
+      actions.append(btnQuiz, btnEdit, btnExport, btnDel);
+      card.append(thumb, badge, h3, p, actions);
+      grid.appendChild(card);
+    });
+    wrap.appendChild(grid);
   }
 
-  const grid = el("div","template-grid");
-  state.templates.forEach(t => {
-    const card = el("div","template-card");
-    const isMatch = t.type === "match";
+  // ── Default templates section ──────────────────────────────────────────────
+  if (state.defaultTemplates.length) {
+    const divider = el("div","divider"); divider.style.marginTop="32px";
+    wrap.appendChild(divider);
 
-    const thumb = el("div", isMatch ? "template-card-thumb match-thumb" : "template-card-thumb");
-    if (isMatch) { thumb.innerHTML = `<span style="font-size:2rem">🔀</span>`; }
-    else if (t.imageData) { const img=el("img",null,{src:t.imageData,alt:t.name}); thumb.appendChild(img); }
-    else { thumb.textContent="🖼️"; }
+    const defLabel = el("div","section-label mt16",{text:"Default Templates"});
+    wrap.appendChild(defLabel);
 
-    const h3 = el("h3",null,{text:t.name});
-    const badge = el("span", isMatch?"badge badge-lavender":"badge badge-coral", {text: isMatch?"Match":"Diagram"});
-    badge.style.marginBottom="4px";
-    const p = el("p",null,{text: isMatch ? `${t.columns.length} cols · ${t.rows.length} rows` : `${t.pins.length} label${t.pins.length!==1?"s":""}`});
+    const defGrid = el("div","template-grid");
+    state.defaultTemplates.forEach(t => {
+      const card = el("div","template-card");
+      const isMatch = t.type === "match";
 
-    const actions = el("div","template-card-actions");
-    const btnQuiz = el("button","btn btn-primary btn-sm",{text:"▶ Quiz"});
-    btnQuiz.onclick = e => { e.stopPropagation(); if(isMatch) startMatchQuiz(t); else { state.quizTemplate=t; navigate("quizSetup"); } };
-    const btnEdit = el("button","btn btn-ghost btn-sm",{text:"✏ Edit"});
-    btnEdit.onclick = e => {
-      e.stopPropagation();
-      if (isMatch) {
-        state.matchCreator = { template:t, name:t.name, numCols:t.columns.length, numRows:t.rows.length, headers:[...t.columns], cells:t.rows.map(r=>r.map(c=>({...c}))) };
-        navigate("matchCreator");
-      } else {
-        state.creator = { template:t, imageData:t.imageData, pins:t.pins.map(p=>({...p})), editingPinId:null, name:t.name, description:t.description||"", pz:{zoom:1,panX:0,panY:0} };
-        navigate("creator");
-      }
-    };
-    const btnExport = el("button","btn btn-ghost btn-sm",{text:"⬇"});
-    btnExport.onclick = e => { e.stopPropagation(); exportTemplate(t); };
-    const btnDel = el("button","btn btn-danger btn-sm",{text:"🗑"});
-    btnDel.onclick = e => { e.stopPropagation(); if(confirm(`Delete "${t.name}"?`)){ state.templates=state.templates.filter(x=>x.id!==t.id); saveTemplates(state.templates); render(); } };
+      const thumb = el("div", isMatch ? "template-card-thumb match-thumb" : "template-card-thumb");
+      if (isMatch) { thumb.innerHTML = `<span style="font-size:2rem">🔀</span>`; }
+      else if (t.imageData) { const img=el("img",null,{src:t.imageData,alt:t.name}); thumb.appendChild(img); }
+      else { thumb.textContent="🖼️"; }
 
-    actions.append(btnQuiz, btnEdit, btnExport, btnDel);
-    card.append(thumb, badge, h3, p, actions);
-    grid.appendChild(card);
-  });
+      const badgeRow = el("div","row",{}); badgeRow.style.gap="6px"; badgeRow.style.marginBottom="4px";
+      const typeBadge = el("span", isMatch?"badge badge-lavender":"badge badge-coral", {text: isMatch?"Match":"Diagram"});
+      const defBadge = el("span","badge badge-sage",{text:"Default"});
+      badgeRow.append(typeBadge, defBadge);
 
-  wrap.appendChild(grid);
+      const h3 = el("h3",null,{text:t.name});
+      const p = el("p",null,{text: isMatch ? `${t.columns.length} cols · ${t.rows.length} rows` : `${t.pins.length} label${t.pins.length!==1?"s":""}`});
+
+      const actions = el("div","template-card-actions");
+      const btnQuiz = el("button","btn btn-primary btn-sm",{text:"▶ Quiz"});
+      btnQuiz.onclick = e => { e.stopPropagation(); if(isMatch) startMatchQuiz(t); else { state.quizTemplate=t; navigate("quizSetup"); } };
+      // Copy to My Templates button
+      const btnCopy = el("button","btn btn-ghost btn-sm",{text:"＋ Copy"});
+      btnCopy.title = "Copy to My Templates";
+      btnCopy.onclick = e => {
+        e.stopPropagation();
+        const copy = JSON.parse(JSON.stringify(t));
+        copy.id = generateId();
+        state.templates.push(copy);
+        saveTemplates(state.templates);
+        render();
+      };
+
+      actions.append(btnQuiz, btnCopy);
+      card.append(thumb, badgeRow, h3, p, actions);
+      defGrid.appendChild(card);
+    });
+    wrap.appendChild(defGrid);
+  }
+
   return wrap;
 }
 
@@ -539,29 +588,50 @@ function makeCreatorPin(pin,i,img) {
   if(isEditing){
     const popup=el("div","pin-label-popup"); popup.onclick=e=>e.stopPropagation();
     const input=el("input",null,{type:"text",placeholder:"Label…",id:"pin-edit-input"});
+    if(pin.label) input.value=pin.label; // pre-fill when renaming
     input.onkeydown=e=>{if(e.key==="Enter")confirmPinLabel();if(e.key==="Escape")cancelPinEdit();};
     popup.appendChild(input); pinEl.appendChild(popup);
+    // Draggable even while editing — popup fades during drag
+    pinEl.style.cursor='grab';
+    pinEl.addEventListener('mousedown', e=>{
+      if(e.button!==0||e.target.closest('.pin-label-popup')) return;
+      e.stopPropagation(); pinEl.style.cursor='grabbing';
+      popup.style.transition='opacity 0.12s'; popup.style.opacity='0.15'; popup.style.pointerEvents='none';
+      const onMove=e=>{
+        const rect=img.getBoundingClientRect();
+        const x=Math.max(0,Math.min(100,(e.clientX-rect.left)/rect.width*100));
+        const y=Math.max(0,Math.min(100,(e.clientY-rect.top)/rect.height*100));
+        pin.x=x; pin.y=y; pinEl.style.left=`${x}%`; pinEl.style.top=`${y}%`;
+      };
+      const onUp=()=>{
+        pinEl.style.cursor='grab'; popup.style.opacity='1'; popup.style.pointerEvents='';
+        document.getElementById("pin-edit-input")?.focus();
+        window.removeEventListener('mousemove',onMove); window.removeEventListener('mouseup',onUp);
+      };
+      window.addEventListener('mousemove',onMove); window.addEventListener('mouseup',onUp);
+    });
   } else {
-    // Drag to reposition
-    pinEl.style.cursor = 'grab';
-    pinEl.addEventListener('mousedown', e => {
-      if (e.button !== 0) return;
-      e.stopPropagation(); // prevent viewport pan from starting
-      pinEl.style.cursor = 'grabbing';
-      const onMove = e => {
-        const rect = img.getBoundingClientRect();
-        const x = Math.max(0, Math.min(100, (e.clientX - rect.left) / rect.width * 100));
-        const y = Math.max(0, Math.min(100, (e.clientY - rect.top) / rect.height * 100));
-        pin.x = x; pin.y = y;
-        pinEl.style.left = `${x}%`; pinEl.style.top = `${y}%`;
+    // Drag to reposition; click (no drag) to rename
+    pinEl.style.cursor='grab';
+    let wasDragged=false;
+    pinEl.addEventListener('mousedown', e=>{
+      if(e.button!==0) return;
+      wasDragged=false;
+      e.stopPropagation(); pinEl.style.cursor='grabbing';
+      const sx=e.clientX, sy=e.clientY;
+      const onMove=e=>{
+        if(Math.abs(e.clientX-sx)>3||Math.abs(e.clientY-sy)>3) wasDragged=true;
+        const rect=img.getBoundingClientRect();
+        const x=Math.max(0,Math.min(100,(e.clientX-rect.left)/rect.width*100));
+        const y=Math.max(0,Math.min(100,(e.clientY-rect.top)/rect.height*100));
+        pin.x=x; pin.y=y; pinEl.style.left=`${x}%`; pinEl.style.top=`${y}%`;
       };
-      const onUp = () => {
-        pinEl.style.cursor = 'grab';
-        window.removeEventListener('mousemove', onMove);
-        window.removeEventListener('mouseup', onUp);
-      };
-      window.addEventListener('mousemove', onMove);
-      window.addEventListener('mouseup', onUp);
+      const onUp=()=>{ pinEl.style.cursor='grab'; window.removeEventListener('mousemove',onMove); window.removeEventListener('mouseup',onUp); };
+      window.addEventListener('mousemove',onMove); window.addEventListener('mouseup',onUp);
+    });
+    pinEl.addEventListener('click', e=>{
+      e.stopPropagation();
+      if(!wasDragged){ c.editingPinId=pin.id; render(); setTimeout(()=>document.getElementById("pin-edit-input")?.focus(),30); }
     });
   }
   return pinEl;
@@ -571,12 +641,19 @@ function confirmPinLabel() {
   const c=state.creator;
   const input=document.getElementById("pin-edit-input");
   const val=input?input.value.trim():"";
-  if(!val) c.pins=c.pins.filter(p=>p.id!==c.editingPinId);
-  else { const pin=c.pins.find(p=>p.id===c.editingPinId); if(pin) pin.label=val; }
+  const pin=c.pins.find(p=>p.id===c.editingPinId);
+  if(val){ if(pin) pin.label=val; }
+  else if(pin&&!pin.label) c.pins=c.pins.filter(p=>p.id!==c.editingPinId); // delete only if brand new
+  // if val is empty but pin had an existing label, keep the old label
   c.editingPinId=null; render();
 }
 
-function cancelPinEdit() { const c=state.creator; c.pins=c.pins.filter(p=>p.id!==c.editingPinId); c.editingPinId=null; render(); }
+function cancelPinEdit() {
+  const c=state.creator;
+  const pin=c.pins.find(p=>p.id===c.editingPinId);
+  if(pin&&!pin.label) c.pins=c.pins.filter(p=>p.id!==c.editingPinId); // only delete if new (no label yet)
+  c.editingPinId=null; render();
+}
 
 function saveCreatorTemplate() {
   const c=state.creator;
@@ -1215,6 +1292,25 @@ function checkMatchAnswers() {
   mq.checkResult=result; mq.showWrong=false; render();
 }
 
+// ─── Default Templates ────────────────────────────────────────────────────────
+
+async function loadDefaultTemplates() {
+  try {
+    const idx = await fetch("./templates/index.json").then(r => r.json());
+    if (!Array.isArray(idx) || !idx.length) return;
+    const templates = await Promise.all(
+      idx.map(filename =>
+        fetch(`./templates/${filename}`)
+          .then(r => r.json())
+          .catch(() => null)
+      )
+    );
+    state.defaultTemplates = templates.filter(Boolean);
+    render();
+  } catch { /* no templates dir or no index — silently skip */ }
+}
+
 // ─── Boot ─────────────────────────────────────────────────────────────────────
 
 render();
+loadDefaultTemplates();

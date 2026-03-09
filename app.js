@@ -36,6 +36,25 @@ function shuffle(arr) {
 }
 function loadTemplates() { try { return JSON.parse(localStorage.getItem(STORAGE_KEY)||"[]"); } catch { return []; } }
 function saveTemplates(t) { localStorage.setItem(STORAGE_KEY, JSON.stringify(t)); }
+function similarity(a, b) {
+  a = a.toLowerCase().trim(); b = b.toLowerCase().trim();
+  if (a === b) return 1;
+  const m = a.length, n = b.length;
+  if (!m || !n) return 0;
+  const prev = Array.from({length: n+1}, (_,j) => j);
+  for (let i = 1; i <= m; i++) {
+    const curr = [i];
+    for (let j = 1; j <= n; j++)
+      curr[j] = a[i-1]===b[j-1] ? prev[j-1] : 1 + Math.min(prev[j], curr[j-1], prev[j-1]);
+    prev.splice(0, prev.length, ...curr);
+  }
+  return 1 - prev[n] / Math.max(m, n);
+}
+function showToast(text) {
+  const t = el("div","toast-bounce",{text});
+  document.body.appendChild(t);
+  setTimeout(() => t.remove(), 1500);
+}
 function el(tag, cls, attrs={}) {
   const e = document.createElement(tag);
   if (cls) e.className = cls;
@@ -743,15 +762,22 @@ function renderQuizSetup() {
   const modeLabel=el("div","section-label mt16",{text:"Answer Mode"});
   const modeToggle=makeToggle([{val:"freetext",label:"Free Text"},{val:"multiplechoice",label:"Multiple Choice"}],"freetext");
   modeToggle.id="mode-toggle";
+  const optLabel=el("div","section-label mt16",{text:"Options"});
+  const ceRow=el("div","checkbox-row mt8");
+  const ceCheck=el("input",null,{type:"checkbox",id:"close-enough-check"}); ceCheck.checked=true;
+  const ceLbl=el("label","checkbox-label",{text:'Close Enough (accept answers with mostly correct spelling)'});
+  ceLbl.setAttribute("for","close-enough-check");
+  ceRow.append(ceCheck,ceLbl);
   const divider=el("div","divider");
   const hint=el("div","text-muted",{text:`${state.quizTemplate.pins.length} labels to quiz on.`});
   const btnStart=el("button","btn btn-primary btn-full mt8",{text:"▶ Start Quiz"});
   btnStart.onclick=()=>{
     const order=orderToggle.dataset.value||"sequential";
     const mode=modeToggle.dataset.value||"freetext";
-    startDiagramQuiz(state.quizTemplate,{order,mode});
+    const closeEnough=document.getElementById("close-enough-check")?.checked??true;
+    startDiagramQuiz(state.quizTemplate,{order,mode,closeEnough});
   };
-  card.append(orderLabel,orderToggle,modeLabel,modeToggle,divider,hint,btnStart);
+  card.append(orderLabel,orderToggle,modeLabel,modeToggle,optLabel,ceRow,divider,hint,btnStart);
   wrap.appendChild(card);
   return wrap;
 }
@@ -822,9 +848,7 @@ function renderQuiz() {
     const pinEl=el("div",classes.join(" "),{text:String(i+1)});
     pinEl.style.left=`${p.x}%`; pinEl.style.top=`${p.y}%`;
     if(!status) { pinEl.style.background=pinColor(i); }
-    if(q.hoveredPinId===p.id && status){ const tip=el("div","pin-tooltip",{text:p.label}); pinEl.appendChild(tip); }
-    pinEl.onmouseenter=()=>{q.hoveredPinId=p.id;rerenderQuizPins(canvasWrap,img);};
-    pinEl.onmouseleave=()=>{q.hoveredPinId=null;rerenderQuizPins(canvasWrap,img);};
+    if(status){ const tip=el("div","pin-tooltip",{text:p.label}); pinEl.appendChild(tip); }
     canvasWrap.appendChild(pinEl);
   });
   setupPinFlee(canvasWrap);
@@ -848,31 +872,33 @@ function renderQuiz() {
     const status=q.results[p.id]; const isActive=p.id===pin.id;
     const item=el("div",`pin-list-item${isActive?" active-item":""}`);
     const dot=el("div","pin-dot",{text:String(i+1)});
-    dot.style.background=status==="correct"?"var(--sage)":status==="revealed"?"var(--gold)":status==="wrong"?"#f28b82":pinColor(i);
+    dot.style.background=status==="correct"||status==="closeenough"?"var(--sage)":status==="revealed"?"var(--gold)":status==="wrong"?"#f28b82":pinColor(i);
     const labelText=status?p.label:isActive?"← Answer this":"—";
     const span=el("span","pin-item-label",{text:labelText}); if(!status&&!isActive) span.style.color="var(--text-muted)";
     item.append(dot,span);
     if(status==="correct") item.appendChild(el("span",null,{text:"✅"}));
+    if(status==="closeenough") item.appendChild(el("span",null,{text:"🤷"}));
     if(status==="revealed") item.appendChild(el("span",null,{text:"💡"}));
     pinList.appendChild(item);
   });
   listCard.appendChild(pinList); listDetails.append(listSummary,listCard); panelCol.appendChild(listDetails);
 
-  const answerCard=el("div","card"); answerCard.style.padding="16px";
+  const answerCard=el("div","card quiz-answer-card"); answerCard.style.padding="16px";
+  if(!q.initialScrollDone){ q.initialScrollDone=true; setTimeout(()=>{ const ac=document.querySelector(".quiz-answer-card"); if(ac){ const over=ac.getBoundingClientRect().bottom-window.innerHeight+20; if(over>0) window.scrollTo({top:window.scrollY+over,behavior:"smooth"}); } },80); }
   const qLabel=el("div","section-label",{text:`What is pin #${q.template.pins.indexOf(pin)+1}?`}); qLabel.style.marginBottom="8px";
   answerCard.appendChild(qLabel);
 
   if(q.settings.mode==="freetext"){
     const textInput=el("input","input",{type:"text",placeholder:"Type your answer…",id:"quiz-text-input"});
-    if(q.feedback==="correct") textInput.disabled=true;
+    if(q.feedback==="correct"||q.feedback==="closeenough") textInput.disabled=true;
     textInput.onkeydown=e=>{if(e.key==="Enter")handleTextSubmit();};
     textInput.oninput=()=>{q.feedback=null;};
     const btnCheck=el("button","btn btn-primary mt8",{text:"Check ↵"});
     btnCheck.style.width="100%"; btnCheck.style.justifyContent="center";
-    if(q.feedback==="correct") btnCheck.disabled=true;
+    if(q.feedback==="correct"||q.feedback==="closeenough") btnCheck.disabled=true;
     btnCheck.onclick=handleTextSubmit;
     answerCard.append(textInput,btnCheck);
-    if(q.feedback){ const fb=el("div",`feedback ${q.feedback}`); fb.textContent=q.feedback==="correct"?"✅ Correct!":"❌ Not quite — try again"; answerCard.appendChild(fb); }
+    if(q.feedback&&q.feedback!=="closeenough"){ const fb=el("div",`feedback ${q.feedback}`); fb.textContent=q.feedback==="correct"?"✅ Correct!":"❌ Not quite — try again"; answerCard.appendChild(fb); }
     setTimeout(()=>document.getElementById("quiz-text-input")?.focus(),30);
   } else {
     const mcGrid=el("div","mc-grid");
@@ -905,9 +931,7 @@ function rerenderQuizPins(canvasWrap,img) {
     const pinEl=el("div",classes.join(" "),{text:String(i+1)});
     pinEl.style.left=`${p.x}%`; pinEl.style.top=`${p.y}%`;
     if(!status) { pinEl.style.background=pinColor(i); }
-    if(q.hoveredPinId===p.id && status){ const tip=el("div","pin-tooltip",{text:p.label}); pinEl.appendChild(tip); }
-    pinEl.onmouseenter=()=>{q.hoveredPinId=p.id;rerenderQuizPins(canvasWrap,img);};
-    pinEl.onmouseleave=()=>{q.hoveredPinId=null;rerenderQuizPins(canvasWrap,img);};
+    if(status){ const tip=el("div","pin-tooltip",{text:p.label}); pinEl.appendChild(tip); }
     canvasWrap.appendChild(pinEl);
   });
 }
@@ -922,10 +946,12 @@ function markDiagramResult(pinId,status) {
 function handleTextSubmit() {
   const q=state.quiz; const pin=q.remaining[0];
   const input=document.getElementById("quiz-text-input"); if(!input||!input.value.trim()) return;
-  const correct=input.value.trim().toLowerCase()===pin.label.toLowerCase();
-  q.feedback=correct?"correct":"wrong";
-  if(correct){ render(); setTimeout(()=>markDiagramResult(pin.id,"correct"),800); }
-  else { render(); setTimeout(()=>document.getElementById("quiz-text-input")?.focus(),30); }
+  const val=input.value.trim();
+  const exact=val.toLowerCase()===pin.label.toLowerCase();
+  const close=!exact&&q.settings.closeEnough&&similarity(val,pin.label)>=0.75;
+  if(exact){ q.feedback="correct"; render(); setTimeout(()=>markDiagramResult(pin.id,"correct"),800); }
+  else if(close){ q.feedback="closeenough"; showToast("Close enough! 🤷"); render(); setTimeout(()=>markDiagramResult(pin.id,"closeenough"),1200); }
+  else { q.feedback="wrong"; render(); setTimeout(()=>document.getElementById("quiz-text-input")?.focus(),30); }
 }
 
 function handleMCClick(option) {
@@ -950,9 +976,10 @@ function finishDiagramQuiz() { state.resultsData={...state.quiz.results}; naviga
 function renderResults() {
   const q=state.quiz; const pins=q.template.pins; const results=state.resultsData;
   const correct=pins.filter(p=>results[p.id]==="correct");
+  const closeEnough=pins.filter(p=>results[p.id]==="closeenough");
   const revealed=pins.filter(p=>results[p.id]==="revealed");
   const skipped=pins.filter(p=>!results[p.id]);
-  const score=Math.round((correct.length/pins.length)*100);
+  const score=Math.round(((correct.length+closeEnough.length)/pins.length)*100);
   const scoreColor=score>=80?"var(--sage)":score>=50?"var(--gold)":"var(--coral)";
   const missedIds=[...revealed.map(p=>p.id),...skipped.map(p=>p.id)];
 
@@ -964,7 +991,10 @@ function renderResults() {
 
   const scoreCard=el("div","card text-center"); scoreCard.style.cssText="padding:32px 24px;margin-bottom:20px;";
   const scoreEl=el("div","score-display",{text:`${score}%`}); scoreEl.style.color=scoreColor;
-  const summary=el("div",null,{text:`${correct.length} correct · ${revealed.length} revealed · ${skipped.length} skipped`});
+  const summaryParts=[`${correct.length} correct`];
+  if(closeEnough.length) summaryParts.push(`${closeEnough.length} close enough 🤷`);
+  summaryParts.push(`${revealed.length} revealed`,`${skipped.length} skipped`);
+  const summary=el("div",null,{text:summaryParts.join(" · ")});
   summary.style.cssText="font-size:1rem;color:var(--text-muted);margin-top:4px;font-weight:600;";
   const btnRow=el("div","row mt16"); btnRow.style.cssText="justify-content:center;gap:12px;";
   if(missedIds.length>0){ const btnRetry=el("button","btn btn-primary",{text:"🔁 Retry Missed"}); btnRetry.onclick=()=>retryMissed(missedIds); btnRow.appendChild(btnRetry); }
@@ -974,12 +1004,14 @@ function renderResults() {
   const breakCard=el("div","card");
   const breakLabel=el("div","section-label",{text:"Breakdown"}); breakLabel.style.marginBottom="12px"; breakCard.appendChild(breakLabel);
   pins.forEach((p,i)=>{
-    const status=results[p.id]||"skipped"; const icon=status==="correct"?"✅":status==="revealed"?"💡":"⏭️";
+    const status=results[p.id]||"skipped";
+    const icon=status==="correct"?"✅":status==="closeenough"?"🤷":status==="revealed"?"💡":"⏭️";
+    const statusLabel=status==="closeenough"?"close enough":status;
     const row=el("div",`result-row r-${status}`);
     const dot=el("div","pin-dot",{text:String(i+1)}); dot.style.cssText=`background:${pinColor(i)};flex-shrink:0;`;
     const labelSpan=el("span",null,{text:p.label}); labelSpan.style.cssText="flex:1;font-weight:700;";
     const iconSpan=el("span",null,{text:icon});
-    const statusSpan=el("span",null,{text:status}); statusSpan.style.cssText="font-size:0.78rem;color:var(--text-muted);text-transform:capitalize;";
+    const statusSpan=el("span",null,{text:statusLabel}); statusSpan.style.cssText="font-size:0.78rem;color:var(--text-muted);text-transform:capitalize;";
     row.append(dot,labelSpan,iconSpan,statusSpan); breakCard.appendChild(row);
   });
   wrap.appendChild(breakCard); return wrap;
@@ -988,8 +1020,8 @@ function renderResults() {
 function retryMissed(missedIds) {
   const q=state.quiz;
   const pins=missedIds.map(id=>q.template.pins.find(p=>p.id===id)).filter(Boolean);
-  const queue=q.settings.order==="random"?shuffle(pins):pins;
-  state.quiz={...q,queue,current:0,results:{},answered:new Set(),mcOptions:[],mcAnswered:null,feedback:null,hoveredPinId:null,pz:{zoom:1,panX:0,panY:0}};
+  const remaining=q.settings.order==="random"?shuffle(pins):pins;
+  state.quiz={...q,remaining,results:{},answered:new Set(),mcOptions:[],mcAnswered:null,feedback:null,hoveredPinId:null,initialScrollDone:false,pz:{zoom:1,panX:0,panY:0}};
   generateMCOptions(); navigate("quiz");
 }
 

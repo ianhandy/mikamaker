@@ -835,12 +835,14 @@ function renderQuiz() {
 
   const panelCol=el("div","quiz-panel-col col");
   if (q.template.description) {
-    const descCard = el("div","quiz-description-card");
-    descCard.textContent = q.template.description;
-    panelCol.appendChild(descCard);
+    const descDetails=el("details","panel-collapsible"); descDetails.open=true;
+    const descSummary=el("summary","panel-collapsible-summary",{text:"Description"});
+    const descCard=el("div","quiz-description-card"); descCard.textContent=q.template.description;
+    descDetails.append(descSummary,descCard); panelCol.appendChild(descDetails);
   }
+  const listDetails=el("details","panel-collapsible"); listDetails.open=true;
+  const listSummary=el("summary","panel-collapsible-summary",{text:"Labels"});
   const listCard=el("div","card"); listCard.style.padding="16px";
-  const listLabel=el("div","section-label",{text:"Labels"}); listLabel.style.marginBottom="8px";
   const pinList=el("div","pin-list"); pinList.style.maxHeight="220px"; pinList.style.overflowY="auto";
   q.template.pins.forEach((p,i)=>{
     const status=q.results[p.id]; const isActive=p.id===pin.id;
@@ -854,7 +856,7 @@ function renderQuiz() {
     if(status==="revealed") item.appendChild(el("span",null,{text:"💡"}));
     pinList.appendChild(item);
   });
-  listCard.append(listLabel,pinList); panelCol.appendChild(listCard);
+  listCard.appendChild(pinList); listDetails.append(listSummary,listCard); panelCol.appendChild(listDetails);
 
   const answerCard=el("div","card"); answerCard.style.padding="16px";
   const qLabel=el("div","section-label",{text:`What is pin #${q.template.pins.indexOf(pin)+1}?`}); qLabel.style.marginBottom="8px";
@@ -890,7 +892,7 @@ function renderQuiz() {
   const btnReveal=el("button","btn btn-ghost btn-sm flex1",{text:"💡 Reveal"}); btnReveal.style.justifyContent="center"; btnReveal.onclick=handleReveal;
   skipRow.append(btnSkip,btnReveal); answerCard.appendChild(skipRow);
 
-  panelCol.appendChild(answerCard); mainRow.appendChild(panelCol); wrap.appendChild(mainRow);
+  panelCol.insertBefore(answerCard, panelCol.firstChild); mainRow.appendChild(panelCol); wrap.appendChild(mainRow);
   return wrap;
 }
 

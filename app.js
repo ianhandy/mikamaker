@@ -841,7 +841,7 @@ function renderQuizSetup() {
   modeToggle.id="mode-toggle";
   const optLabel=el("div","section-label mt16",{text:"Options"});
   const ceRow=el("div","checkbox-row mt8");
-  const ceCheck=el("input",null,{type:"checkbox",id:"close-enough-check"}); ceCheck.checked=true;
+  const ceCheck=el("input",null,{type:"checkbox",id:"close-enough-check"}); ceCheck.checked=false;
   const ceLbl=el("label","checkbox-label",{text:'Close Enough (accept answers with mostly correct spelling)'});
   ceLbl.setAttribute("for","close-enough-check");
   ceRow.append(ceCheck,ceLbl);

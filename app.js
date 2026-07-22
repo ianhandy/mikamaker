@@ -260,10 +260,10 @@ const state = {
   matchCreator: { template: null, name: "", numCols: 2, numRows: 3, headers: ["Column 1","Column 2"], cells: [] },
   termCreator: { template:null, name:"", gridCols:2, gridRows:3, terms:[] },
   quizTemplate: null,
-  termSetup: { template:null, selectedIds:new Set(), mode:"round", gridCols:2, gridRows:3, showSelection:false },
+  termSetup: { template:null, selectedIds:new Set(), mode:"round", gridCols:2, gridRows:3, direction:"termToDefinition", showSelection:false },
   quiz: { template:null, settings:{order:"sequential",mode:"freetext"}, queue:[], current:0, results:{}, answered:new Set(), mcOptions:[], mcAnswered:null, feedback:null, hoveredPinId:null },
   matchQuiz: { template:null, colOrders:[], selected:null, dragging:null, checkResult:null, showWrong:false },
-  termQuiz: { template:null, scopeTerms:[], queue:[], mode:"round", gridCols:2, gridRows:3, currentTerm:null, definitionOptions:[], feedback:null, results:{}, practice:false, completed:false },
+  termQuiz: { template:null, scopeTerms:[], queue:[], mode:"round", gridCols:2, gridRows:3, direction:"termToDefinition", currentTerm:null, definitionOptions:[], feedback:null, results:{}, practice:false, completed:false },
   resultsData: null,
 };
 
@@ -1383,7 +1383,7 @@ function checkMatchAnswers() {
 // ─── Terms & Definitions Quiz ────────────────────────────────────────────────
 
 function openTermSetup(template) {
-  state.termSetup={template,selectedIds:new Set(template.terms.map(pair=>pair.id)),mode:"round",gridCols:template.gridCols||2,gridRows:template.gridRows||3,showSelection:false};
+  state.termSetup={template,selectedIds:new Set(template.terms.map(pair=>pair.id)),mode:"round",gridCols:template.gridCols||2,gridRows:template.gridRows||3,direction:"termToDefinition",showSelection:false};
   navigate("termSetup");
 }
 
@@ -1420,6 +1420,14 @@ function renderTermSetup() {
   const gridReadout=el("div","text-muted mt8",{text:`This quiz: ${ts.gridCols} × ${ts.gridRows} definitions`});
   gridSize.append(gridInputs,gridReadout); modeCard.appendChild(gridSize); wrap.appendChild(modeCard);
 
+  const direction=el("div","mt16"); direction.appendChild(el("div","section-label",{text:"Quiz Direction"}));
+  const directionToggle=el("div","toggle-group mt8");
+  [["termToDefinition","Name → Definition"],["definitionToTerm","Definition → Name"]].forEach(([value,label])=>{
+    const option=el("button",`toggle-option${ts.direction===value?" selected":""}`,{text:label});
+    option.onclick=()=>{ts.direction=value;render();}; directionToggle.appendChild(option);
+  });
+  direction.appendChild(directionToggle); modeCard.appendChild(direction);
+
   const selectionToggle=el("button","btn btn-ghost mt16",{text:ts.showSelection?"− Hide Practice Selection":"＋ Practice a Selection"});
   selectionToggle.onclick=()=>{ts.showSelection=!ts.showSelection;render();}; wrap.appendChild(selectionToggle);
   if(ts.showSelection) {
@@ -1439,12 +1447,12 @@ function renderTermSetup() {
   const actions=el("div","match-action-bar");
   const selectedTerms=ts.showSelection?template.terms.filter(pair=>ts.selectedIds.has(pair.id)):template.terms;
   const start=el("button","btn btn-primary",{text:"▶ Start Practice"}); start.disabled=selectedTerms.length<2;
-  start.onclick=()=>startTermQuiz(template,{scopeTerms:selectedTerms,mode:ts.mode,gridCols:ts.gridCols,gridRows:ts.gridRows}); actions.appendChild(start); wrap.appendChild(actions);
+  start.onclick=()=>startTermQuiz(template,{scopeTerms:selectedTerms,mode:ts.mode,gridCols:ts.gridCols,gridRows:ts.gridRows,direction:ts.direction}); actions.appendChild(start); wrap.appendChild(actions);
   return wrap;
 }
 
-function startTermQuiz(template, {scopeTerms=template.terms, mode="round", practice=false, gridCols=template.gridCols||2, gridRows=template.gridRows||3}={}) {
-  state.termQuiz={template,scopeTerms:[...scopeTerms],queue:shuffle([...scopeTerms]),mode,gridCols,gridRows,currentTerm:null,definitionOptions:[],feedback:null,results:{},practice,completed:false};
+function startTermQuiz(template, {scopeTerms=template.terms, mode="round", practice=false, gridCols=template.gridCols||2, gridRows=template.gridRows||3, direction="termToDefinition"}={}) {
+  state.termQuiz={template,scopeTerms:[...scopeTerms],queue:shuffle([...scopeTerms]),mode,gridCols,gridRows,direction,currentTerm:null,definitionOptions:[],feedback:null,results:{},practice,completed:false};
   state.screen="termQuiz";
   nextTermQuestion();
 }
@@ -1489,22 +1497,23 @@ function renderTermQuiz() {
   const back=el("button","btn btn-ghost btn-sm",{text:"← Home"}); back.onclick=()=>navigate("home");
   topbar.append(back,el("h2",null,{text:template.name})); wrap.appendChild(topbar);
   const instruction=el("div","quiz-description-card");
-  instruction.textContent=tq.practice?"Practice Incorrect: answer each missed term once.":tq.mode==="indefinite"?"Indefinite practice: the selected terms reshuffle after each completed pass.":"Match the term on the left to a definition. Feedback appears immediately.";
+  const promptIsTerm=tq.direction==="termToDefinition";
+  instruction.textContent=tq.practice?"Practice Incorrect: answer each missed term once.":tq.mode==="indefinite"?"Indefinite practice: the selected terms reshuffle after each completed pass.":`Match the ${promptIsTerm?"name":"definition"} on the left to the ${promptIsTerm?"definition":"name"} tiles. Feedback appears immediately.`;
   wrap.appendChild(instruction);
 
   if(!completed) {
     wrap.appendChild(el("div","text-muted mt16",{text:`Term ${answered+1} of ${tq.scopeTerms.length} · ${tq.gridCols} × ${tq.gridRows} definition grid`}));
     const board=el("div","term-match-board mt8");
-    const termList=el("section","term-tile-list"); termList.appendChild(el("h3","term-list-heading",{text:"Term"}));
-    termList.appendChild(el("div","term-prompt-tile",{text:currentTerm.term}));
+    const termList=el("section","term-tile-list"); termList.appendChild(el("h3","term-list-heading",{text:promptIsTerm?"Name":"Definition"}));
+    termList.appendChild(el("div","term-prompt-tile",{text:promptIsTerm?currentTerm.term:currentTerm.definition}));
 
-    const definitionList=el("section","term-tile-list"); definitionList.appendChild(el("h3","term-list-heading",{text:"Definitions"}));
+    const definitionList=el("section","term-tile-list"); definitionList.appendChild(el("h3","term-list-heading",{text:promptIsTerm?"Definitions":"Names"}));
     const defs=el("div","term-tile-grid"); defs.style.cssText=`--term-columns:${tq.gridCols}; --term-rows:${tq.gridRows}`;
     definitionOptions.forEach(pair=>{
       const selected=feedback?.selectedId===pair.id;
       const isCorrect=feedback&&pair.id===currentTerm.id;
       const isWrong=selected&&!feedback.correct;
-      const tile=el("button",`term-tile term-tile-definition${selected?" selected":""}${isCorrect?" result-correct":""}${isWrong?" result-wrong":""}`,{text:pair.definition});
+      const tile=el("button",`term-tile term-tile-definition${selected?" selected":""}${isCorrect?" result-correct":""}${isWrong?" result-wrong":""}`,{text:promptIsTerm?pair.definition:pair.term});
       tile.disabled=Boolean(feedback);
       tile.onclick=()=>answerTermDefinition(pair.id);
       defs.appendChild(tile);
@@ -1516,7 +1525,7 @@ function renderTermQuiz() {
       actions.append(el("div",`feedback ${feedback.correct?"correct":"wrong"}`,{text:feedback.correct?"✓ Correct":"✕ Incorrect"}));
       const next=el("button","btn btn-primary",{text:"Next Term →"}); next.onclick=nextTermQuestion; actions.appendChild(next);
     }
-    const reset=el("button","btn btn-ghost",{text:"↺ Restart"}); reset.onclick=()=>startTermQuiz(template,{scopeTerms:tq.scopeTerms,mode:tq.mode,practice:tq.practice,gridCols:tq.gridCols,gridRows:tq.gridRows}); actions.appendChild(reset);
+    const reset=el("button","btn btn-ghost",{text:"↺ Restart"}); reset.onclick=()=>startTermQuiz(template,{scopeTerms:tq.scopeTerms,mode:tq.mode,practice:tq.practice,gridCols:tq.gridCols,gridRows:tq.gridRows,direction:tq.direction}); actions.appendChild(reset);
     wrap.appendChild(actions);
   } else {
     const correct=Object.values(tq.results).filter(Boolean).length;
@@ -1525,8 +1534,8 @@ function renderTermQuiz() {
     const message=wrongTerms.length?"<div style=\"font-weight:800;font-size:1.1rem\">Pass complete</div><div style=\"color:var(--text-muted);font-size:.9rem;margin-top:4px\">Your result has been saved on this device.</div>":"<div style=\"font-weight:800;font-size:1.1rem\">🎉 Perfect pass!</div><div style=\"color:var(--text-muted);font-size:.9rem;margin-top:4px\">Your result has been saved on this device.</div>";
     banner.append(el("div","banner-score",{text:`${correct}/${tq.scopeTerms.length}`}),el("div",null,{html:message})); wrap.appendChild(banner);
     const actions=el("div","match-action-bar");
-    if(wrongTerms.length) { const practice=el("button","btn btn-primary",{text:"🔁 Practice Incorrect"}); practice.onclick=()=>startTermQuiz(template,{scopeTerms:wrongTerms,practice:true,gridCols:tq.gridCols,gridRows:tq.gridRows}); actions.appendChild(practice); }
-    const again=el("button","btn btn-sage",{text:"↺ Try Again"}); again.onclick=()=>startTermQuiz(template,{scopeTerms:tq.scopeTerms,mode:tq.mode,gridCols:tq.gridCols,gridRows:tq.gridRows});
+    if(wrongTerms.length) { const practice=el("button","btn btn-primary",{text:"🔁 Practice Incorrect"}); practice.onclick=()=>startTermQuiz(template,{scopeTerms:wrongTerms,practice:true,gridCols:tq.gridCols,gridRows:tq.gridRows,direction:tq.direction}); actions.appendChild(practice); }
+    const again=el("button","btn btn-sage",{text:"↺ Try Again"}); again.onclick=()=>startTermQuiz(template,{scopeTerms:tq.scopeTerms,mode:tq.mode,gridCols:tq.gridCols,gridRows:tq.gridRows,direction:tq.direction});
     const home=el("button","btn btn-ghost",{text:"🏠 Home"}); home.onclick=()=>navigate("home"); actions.append(again,home); wrap.appendChild(actions);
   }
   if(scoreHistory.length) wrap.appendChild(el("div","term-score-history mt16",{text:`Previous scores: ${scoreHistory.slice(-5).map(score=>`${score.correct}/${score.total}`).join(" · ")}`}));

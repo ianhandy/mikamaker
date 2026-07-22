@@ -440,6 +440,43 @@ body::before {
 .match-result-banner.all-correct .banner-score { color: #8aaa6a; }
 .match-result-banner.has-wrong .banner-score { color: #c86050; }
 
+/* ── Terms & definitions ── */
+.term-settings-card { display: flex; gap: 20px; align-items: end; flex-wrap: wrap; }
+.term-grid-size { min-width: 240px; }
+.term-dimension { flex: 1; font-family: 'IBM Plex Mono', monospace; color: var(--text-muted); font-size: .62rem; letter-spacing: .08em; text-transform: uppercase; }
+.term-dimension .input { margin-top: 5px; padding: 8px 10px; }
+.term-editor-list { display: flex; flex-direction: column; gap: 6px; }
+.term-editor-row { display: grid; grid-template-columns: 30px minmax(0, 1fr) minmax(0, 1.6fr) auto; align-items: center; gap: 8px; }
+.term-match-board { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.25fr); gap: 16px; }
+.term-tile-list { background: var(--surface); border: 1px solid var(--border); padding: 14px; }
+.term-list-heading { font-family: 'IBM Plex Mono', monospace; color: var(--coral); font-size: .65rem; font-weight: 500; letter-spacing: .15em; text-transform: uppercase; margin-bottom: 10px; }
+.term-prompt-tile { min-height: 120px; display: flex; align-items: center; justify-content: center; padding: 18px; border: 1px solid var(--coral); background: var(--peach-light); color: var(--text); font-family: 'DM Serif Display', serif; font-size: 1.25rem; text-align: center; word-break: break-word; }
+.term-tile-grid { display: grid; grid-template-columns: repeat(var(--term-columns), minmax(0, 1fr)); grid-template-rows: repeat(var(--term-rows), minmax(60px, auto)); grid-auto-rows: minmax(60px, auto); gap: 6px; }
+.term-tile { border: 1px solid var(--border); background: var(--surface2); color: var(--text); padding: 10px; font-family: 'IBM Plex Mono', monospace; font-size: .72rem; letter-spacing: .02em; cursor: crosshair; text-align: center; transition: border-color .15s, background .15s; word-break: break-word; }
+.term-tile:hover:not(:disabled) { border-color: var(--gold); background: var(--sky-light); }
+.term-tile.selected { border-color: var(--coral); background: var(--peach-light); box-shadow: 0 0 0 2px rgba(196,88,31,.3); }
+.term-tile.paired { border-color: var(--gold); }
+.term-tile.result-correct { border-color: var(--sage); background: var(--sage-light); color: #9fbd80; }
+.term-tile.result-wrong { border-color: #8b2020; background: rgba(139,32,32,.12); color: #d77a68; }
+.term-mode-options { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; }
+.term-mode-option { padding: 14px; border: 1px solid var(--border); background: var(--surface2); color: var(--text-muted); cursor: crosshair; text-align: left; font-family: 'IBM Plex Mono', monospace; }
+.term-mode-option strong { display: block; color: var(--text); font-size: .7rem; letter-spacing: .1em; text-transform: uppercase; margin-bottom: 7px; }
+.term-mode-option span { font-size: .65rem; line-height: 1.5; }
+.term-mode-option.selected { border-color: var(--coral); background: var(--peach-light); }
+.term-selection-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 5px; }
+.term-selection-item { display: flex; gap: 8px; align-items: center; padding: 9px; border: 1px solid var(--border); background: var(--surface2); color: var(--text-muted); font-family: 'IBM Plex Mono', monospace; font-size: .68rem; cursor: crosshair; }
+.term-selection-item.selected { border-color: var(--coral); color: var(--text); background: var(--peach-light); }
+.term-selection-item input { accent-color: var(--coral); }
+.term-score-history { margin-left: auto; color: var(--text-muted); font-family: 'IBM Plex Mono', monospace; font-size: .62rem; letter-spacing: .04em; }
+
+@media (max-width: 700px) {
+  .term-editor-row { grid-template-columns: 26px minmax(0, 1fr) auto; }
+  .term-editor-row textarea:nth-of-type(2) { grid-column: 2 / 4; }
+  .term-match-board { grid-template-columns: 1fr; }
+  .term-mode-options { grid-template-columns: 1fr; }
+  .term-score-history { width: 100%; margin-left: 0; }
+}
+
 /* ── Pan / Zoom viewport ── */
 .canvas-zoom-viewport {
   overflow: hidden; border-radius: 0; position: relative;

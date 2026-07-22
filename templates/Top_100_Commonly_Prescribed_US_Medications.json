@@ -1,0 +1,510 @@
+{
+  "id": "default-top-100-us-medications-2025",
+  "type": "termMatch",
+  "name": "Top 100 Commonly Prescribed U.S. Medications",
+  "description": "Brand names matched to generic names. Built as a 100-medication U.S. study list without strengths or dosages.",
+  "gridCols": 5,
+  "gridRows": 4,
+  "terms": [
+    {
+      "id": "med-001",
+      "term": "Abilify",
+      "definition": "aripiprazole"
+    },
+    {
+      "id": "med-002",
+      "term": "Advair Diskus",
+      "definition": "fluticasone propionate / salmeterol"
+    },
+    {
+      "id": "med-003",
+      "term": "Amaryl",
+      "definition": "glimepiride"
+    },
+    {
+      "id": "med-004",
+      "term": "Amoxil",
+      "definition": "amoxicillin"
+    },
+    {
+      "id": "med-005",
+      "term": "Aricept",
+      "definition": "donepezil"
+    },
+    {
+      "id": "med-006",
+      "term": "Augmentin",
+      "definition": "amoxicillin / clavulanate"
+    },
+    {
+      "id": "med-007",
+      "term": "Avapro",
+      "definition": "irbesartan"
+    },
+    {
+      "id": "med-008",
+      "term": "Bactrim DS",
+      "definition": "sulfamethoxazole / trimethoprim DS"
+    },
+    {
+      "id": "med-009",
+      "term": "Bactroban ointment",
+      "definition": "mupirocin ointment"
+    },
+    {
+      "id": "med-010",
+      "term": "Benicar",
+      "definition": "olmesartan"
+    },
+    {
+      "id": "med-011",
+      "term": "Catapres",
+      "definition": "clonidine"
+    },
+    {
+      "id": "med-012",
+      "term": "Celebrex",
+      "definition": "celecoxib"
+    },
+    {
+      "id": "med-013",
+      "term": "Celexa",
+      "definition": "citalopram"
+    },
+    {
+      "id": "med-014",
+      "term": "Cipro",
+      "definition": "ciprofloxacin"
+    },
+    {
+      "id": "med-015",
+      "term": "Coreg",
+      "definition": "carvedilol"
+    },
+    {
+      "id": "med-016",
+      "term": "Coumadin",
+      "definition": "warfarin"
+    },
+    {
+      "id": "med-017",
+      "term": "Cozaar",
+      "definition": "losartan"
+    },
+    {
+      "id": "med-018",
+      "term": "Crestor",
+      "definition": "rosuvastatin"
+    },
+    {
+      "id": "med-019",
+      "term": "Cymbalta",
+      "definition": "duloxetine"
+    },
+    {
+      "id": "med-020",
+      "term": "Deltasone",
+      "definition": "prednisone"
+    },
+    {
+      "id": "med-021",
+      "term": "Depakote",
+      "definition": "divalproex"
+    },
+    {
+      "id": "med-022",
+      "term": "Desyrel",
+      "definition": "trazodone"
+    },
+    {
+      "id": "med-023",
+      "term": "Diflucan",
+      "definition": "fluconazole"
+    },
+    {
+      "id": "med-024",
+      "term": "Dilantin",
+      "definition": "phenytoin sodium ER"
+    },
+    {
+      "id": "med-025",
+      "term": "Diovan",
+      "definition": "valsartan"
+    },
+    {
+      "id": "med-026",
+      "term": "Effexor XR",
+      "definition": "venlafaxine ER"
+    },
+    {
+      "id": "med-027",
+      "term": "Eliquis",
+      "definition": "apixaban"
+    },
+    {
+      "id": "med-028",
+      "term": "Flagyl",
+      "definition": "metronidazole"
+    },
+    {
+      "id": "med-029",
+      "term": "Flexeril",
+      "definition": "cyclobenzaprine"
+    },
+    {
+      "id": "med-030",
+      "term": "Flomax",
+      "definition": "tamsulosin"
+    },
+    {
+      "id": "med-031",
+      "term": "Flonase nasal spray",
+      "definition": "fluticasone"
+    },
+    {
+      "id": "med-032",
+      "term": "Flovent HFA",
+      "definition": "fluticasone HFA"
+    },
+    {
+      "id": "med-033",
+      "term": "Folvite",
+      "definition": "folic acid"
+    },
+    {
+      "id": "med-034",
+      "term": "Fosamax",
+      "definition": "alendronate"
+    },
+    {
+      "id": "med-035",
+      "term": "Glucophage",
+      "definition": "metformin"
+    },
+    {
+      "id": "med-036",
+      "term": "Vicodin",
+      "definition": "hydrocodone / acetaminophen"
+    },
+    {
+      "id": "med-037",
+      "term": "Glucophage XR",
+      "definition": "metformin ER"
+    },
+    {
+      "id": "med-038",
+      "term": "Glucotrol XL",
+      "definition": "glipizide ER"
+    },
+    {
+      "id": "med-039",
+      "term": "Xanax",
+      "definition": "alprazolam"
+    },
+    {
+      "id": "med-040",
+      "term": "HydroDIURIL",
+      "definition": "hydrochlorothiazide"
+    },
+    {
+      "id": "med-041",
+      "term": "Ambien",
+      "definition": "zolpidem"
+    },
+    {
+      "id": "med-042",
+      "term": "Imitrex",
+      "definition": "sumatriptan"
+    },
+    {
+      "id": "med-043",
+      "term": "Januvia",
+      "definition": "sitagliptin"
+    },
+    {
+      "id": "med-044",
+      "term": "K-Dur",
+      "definition": "potassium chloride"
+    },
+    {
+      "id": "med-045",
+      "term": "Keflex",
+      "definition": "cephalexin"
+    },
+    {
+      "id": "med-046",
+      "term": "Lamictal",
+      "definition": "lamotrigine"
+    },
+    {
+      "id": "med-047",
+      "term": "Lamisil",
+      "definition": "terbinafine"
+    },
+    {
+      "id": "med-048",
+      "term": "Lasix",
+      "definition": "furosemide"
+    },
+    {
+      "id": "med-049",
+      "term": "Percocet",
+      "definition": "oxycodone / acetaminophen"
+    },
+    {
+      "id": "med-050",
+      "term": "Lexapro",
+      "definition": "escitalopram"
+    },
+    {
+      "id": "med-051",
+      "term": "Lipitor",
+      "definition": "atorvastatin"
+    },
+    {
+      "id": "med-052",
+      "term": "Klonopin",
+      "definition": "clonazepam"
+    },
+    {
+      "id": "med-053",
+      "term": "Lopressor",
+      "definition": "metoprolol tartrate"
+    },
+    {
+      "id": "med-054",
+      "term": "Lyrica",
+      "definition": "pregabalin"
+    },
+    {
+      "id": "med-055",
+      "term": "Macrobid",
+      "definition": "nitrofurantoin monohydrate/macrocrystals"
+    },
+    {
+      "id": "med-056",
+      "term": "Maxzide",
+      "definition": "triamterene / hydrochlorothiazide"
+    },
+    {
+      "id": "med-057",
+      "term": "Mobic",
+      "definition": "meloxicam"
+    },
+    {
+      "id": "med-058",
+      "term": "Motrin",
+      "definition": "ibuprofen"
+    },
+    {
+      "id": "med-059",
+      "term": "Ativan",
+      "definition": "lorazepam"
+    },
+    {
+      "id": "med-060",
+      "term": "Naprosyn",
+      "definition": "naproxen"
+    },
+    {
+      "id": "med-061",
+      "term": "Neurontin",
+      "definition": "gabapentin"
+    },
+    {
+      "id": "med-062",
+      "term": "Nexium",
+      "definition": "esomeprazole"
+    },
+    {
+      "id": "med-063",
+      "term": "Norvasc",
+      "definition": "amlodipine"
+    },
+    {
+      "id": "med-064",
+      "term": "Paxil",
+      "definition": "paroxetine"
+    },
+    {
+      "id": "med-065",
+      "term": "Plavix",
+      "definition": "clopidogrel"
+    },
+    {
+      "id": "med-066",
+      "term": "Pravachol",
+      "definition": "pravastatin"
+    },
+    {
+      "id": "med-067",
+      "term": "Prilosec",
+      "definition": "omeprazole"
+    },
+    {
+      "id": "med-068",
+      "term": "Procardia XL",
+      "definition": "nifedipine ER"
+    },
+    {
+      "id": "med-069",
+      "term": "Proscar",
+      "definition": "finasteride"
+    },
+    {
+      "id": "med-070",
+      "term": "Protonix",
+      "definition": "pantoprazole"
+    },
+    {
+      "id": "med-071",
+      "term": "Prozac",
+      "definition": "fluoxetine"
+    },
+    {
+      "id": "med-072",
+      "term": "Risperdal",
+      "definition": "risperidone"
+    },
+    {
+      "id": "med-073",
+      "term": "Seroquel",
+      "definition": "quetiapine"
+    },
+    {
+      "id": "med-074",
+      "term": "Singulair",
+      "definition": "montelukast"
+    },
+    {
+      "id": "med-075",
+      "term": "Synthroid",
+      "definition": "levothyroxine"
+    },
+    {
+      "id": "med-076",
+      "term": "Ultram",
+      "definition": "tramadol"
+    },
+    {
+      "id": "med-077",
+      "term": "Tenormin",
+      "definition": "atenolol"
+    },
+    {
+      "id": "med-078",
+      "term": "Allegra",
+      "definition": "fexofenadine"
+    },
+    {
+      "id": "med-079",
+      "term": "Topamax",
+      "definition": "topiramate"
+    },
+    {
+      "id": "med-080",
+      "term": "Toprol XL",
+      "definition": "metoprolol succinate ER"
+    },
+    {
+      "id": "med-081",
+      "term": "Tricor",
+      "definition": "fenofibrate"
+    },
+    {
+      "id": "med-082",
+      "term": "V-Cillin K",
+      "definition": "penicillin V potassium"
+    },
+    {
+      "id": "med-083",
+      "term": "Valtrex",
+      "definition": "valacyclovir"
+    },
+    {
+      "id": "med-084",
+      "term": "Vasotec",
+      "definition": "enalapril"
+    },
+    {
+      "id": "med-085",
+      "term": "Ventolin HFA",
+      "definition": "albuterol HFA inhaler"
+    },
+    {
+      "id": "med-086",
+      "term": "Vibramycin",
+      "definition": "doxycycline"
+    },
+    {
+      "id": "med-087",
+      "term": "Wellbutrin SR",
+      "definition": "bupropion SR"
+    },
+    {
+      "id": "med-088",
+      "term": "Xalatan",
+      "definition": "latanoprost"
+    },
+    {
+      "id": "med-089",
+      "term": "Xarelto",
+      "definition": "rivaroxaban"
+    },
+    {
+      "id": "med-090",
+      "term": "Zestoretic",
+      "definition": "lisinopril / hydrochlorothiazide"
+    },
+    {
+      "id": "med-091",
+      "term": "Zestril",
+      "definition": "lisinopril"
+    },
+    {
+      "id": "med-092",
+      "term": "Mevacor",
+      "definition": "lovastatin"
+    },
+    {
+      "id": "med-093",
+      "term": "Zetia",
+      "definition": "ezetimibe"
+    },
+    {
+      "id": "med-094",
+      "term": "Zithromax",
+      "definition": "azithromycin"
+    },
+    {
+      "id": "med-095",
+      "term": "Zocor",
+      "definition": "simvastatin"
+    },
+    {
+      "id": "med-096",
+      "term": "Valium",
+      "definition": "diazepam"
+    },
+    {
+      "id": "med-097",
+      "term": "Zoloft",
+      "definition": "sertraline"
+    },
+    {
+      "id": "med-098",
+      "term": "Levaquin",
+      "definition": "levofloxacin"
+    },
+    {
+      "id": "med-099",
+      "term": "Zyloprim",
+      "definition": "allopurinol"
+    },
+    {
+      "id": "med-100",
+      "term": "Zyprexa",
+      "definition": "olanzapine"
+    }
+  ]
+}

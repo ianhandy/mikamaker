@@ -1,6 +1,7 @@
 // ─── Constants & Helpers ─────────────────────────────────────────────────────
 
 const STORAGE_KEY = "diagramQuizTemplates";
+const TERM_MATCH_SCORES_KEY = "termMatchScores";
 const PIN_COLORS = ["#e86a22","#f0ab30","#8ab84a","#d8602a","#e8c040","#c85020","#a8c84a","#f07840","#60aa50","#d04010"];
 
 // ─── Title Flee ───────────────────────────────────────────────────────────────
@@ -36,6 +37,12 @@ function shuffle(arr) {
 }
 function loadTemplates() { try { return JSON.parse(localStorage.getItem(STORAGE_KEY)||"[]"); } catch { return []; } }
 function saveTemplates(t) { localStorage.setItem(STORAGE_KEY, JSON.stringify(t)); }
+function loadTermMatchScores() { try { return JSON.parse(localStorage.getItem(TERM_MATCH_SCORES_KEY)||"{}"); } catch { return {}; } }
+function saveTermMatchScore(templateId, score) {
+  const scores=loadTermMatchScores();
+  scores[templateId]=[...(scores[templateId]||[]),score].slice(-20);
+  localStorage.setItem(TERM_MATCH_SCORES_KEY,JSON.stringify(scores));
+}
 function similarity(a, b) {
   a = a.toLowerCase().trim(); b = b.toLowerCase().trim();
   if (a === b) return 1;
@@ -246,13 +253,17 @@ function setupPanZoom(viewport, canvasWrap, pzState) {
 const state = {
   templates: loadTemplates(),
   defaultTemplates: [],
-  screen: "home",         // home | creator | matchCreator | quizSetup | quiz | results | matchQuiz
+  screen: "home",         // home | creator | matchCreator | termCreator | termSetup | quizSetup | quiz | results | matchQuiz | termQuiz
   showTypePicker: false,
+  showMatchTypePicker: false,
   creator: { template: null, imageData: null, pins: [], editingPinId: null, name: "", description: "", pz: {zoom:1,panX:0,panY:0} },
   matchCreator: { template: null, name: "", numCols: 2, numRows: 3, headers: ["Column 1","Column 2"], cells: [] },
+  termCreator: { template:null, name:"", gridCols:2, gridRows:3, terms:[] },
   quizTemplate: null,
+  termSetup: { template:null, selectedIds:new Set(), mode:"round", gridCols:2, gridRows:3, showSelection:false },
   quiz: { template:null, settings:{order:"sequential",mode:"freetext"}, queue:[], current:0, results:{}, answered:new Set(), mcOptions:[], mcAnswered:null, feedback:null, hoveredPinId:null },
   matchQuiz: { template:null, colOrders:[], selected:null, dragging:null, checkResult:null, showWrong:false },
+  termQuiz: { template:null, scopeTerms:[], queue:[], mode:"round", gridCols:2, gridRows:3, currentTerm:null, definitionOptions:[], feedback:null, results:{}, practice:false, completed:false },
   resultsData: null,
 };
 
@@ -264,11 +275,12 @@ function render() {
   const root = document.getElementById("root");
   root.innerHTML = "";
 
-  // Modal overlay for type picker
+  // Modal overlays
+  document.querySelectorAll(".modal-overlay").forEach(m=>m.remove());
   if (state.showTypePicker) {
     document.body.appendChild(renderTypePicker());
-  } else {
-    document.querySelectorAll(".modal-overlay").forEach(m=>m.remove());
+  } else if (state.showMatchTypePicker) {
+    document.body.appendChild(renderMatchTypePicker());
   }
 
   const header = el("div","header");
@@ -282,7 +294,7 @@ function render() {
   header.append(h1, el("p",null,{text:"Make-A-Mika"}));
   root.appendChild(header);
 
-  const map = { home:renderHome, creator:renderCreator, matchCreator:renderMatchCreator, quizSetup:renderQuizSetup, quiz:renderQuiz, results:renderResults, matchQuiz:renderMatchQuiz };
+  const map = { home:renderHome, creator:renderCreator, matchCreator:renderMatchCreator, termCreator:renderTermCreator, termSetup:renderTermSetup, quizSetup:renderQuizSetup, quiz:renderQuiz, results:renderResults, matchQuiz:renderMatchQuiz, termQuiz:renderTermQuiz };
   const screenEl = map[state.screen]?.();
   if (screenEl) root.appendChild(screenEl);
 }
@@ -308,8 +320,8 @@ function renderTypePicker() {
   matchCard.innerHTML = `<div class="type-icon">🔀</div><h4>Match</h4><p>Create columns of items for the user to match up</p>`;
   matchCard.onclick = () => {
     state.showTypePicker = false;
-    state.matchCreator = { template:null, name:"", numCols:2, numRows:3, headers:["Column 1","Column 2"], cells:initMatchCells(2,3) };
-    navigate("matchCreator");
+    state.showMatchTypePicker = true;
+    render();
   };
 
   picker.append(diagramCard, matchCard);
@@ -318,11 +330,27 @@ function renderTypePicker() {
   return overlay;
 }
 
+function renderMatchTypePicker() {
+  const overlay=el("div","modal-overlay");
+  overlay.onclick=e=>{if(e.target===overlay){state.showMatchTypePicker=false;render();}};
+  const modal=el("div","modal");
+  modal.innerHTML=`<h3>New Match Template</h3><p>Choose the matching activity you want to create.</p>`;
+  const picker=el("div","type-picker");
+  const gridCard=el("div","type-card");
+  gridCard.innerHTML=`<div class="type-icon">🔀</div><h4>Grid Match</h4><p>Match rows across two or more columns, including images</p>`;
+  gridCard.onclick=()=>{state.showMatchTypePicker=false;state.matchCreator={template:null,name:"",numCols:2,numRows:3,headers:["Column 1","Column 2"],cells:initMatchCells(2,3)};navigate("matchCreator");};
+  const termCard=el("div","type-card");
+  termCard.innerHTML=`<div class="type-icon">📚</div><h4>Terms & Definitions</h4><p>Study two lists of medication names, terms, and definitions</p>`;
+  termCard.onclick=()=>{state.showMatchTypePicker=false;state.termCreator={template:null,name:"",gridCols:2,gridRows:3,terms:initTermPairs(6)};navigate("termCreator");};
+  picker.append(gridCard,termCard); modal.appendChild(picker); overlay.appendChild(modal); return overlay;
+}
+
 function initMatchCells(cols, rows) {
   const cells = [];
   for (let r=0; r<rows; r++) { const row=[]; for(let c=0;c<cols;c++) row.push({type:"text",value:""}); cells.push(row); }
   return cells;
 }
+function initTermPairs(count) { return Array.from({length:count},()=>({id:generateId(),term:"",definition:""})); }
 
 // ─── Home ─────────────────────────────────────────────────────────────────────
 
@@ -358,24 +386,29 @@ function renderHome() {
     state.templates.forEach(t => {
       const card = el("div","template-card");
       const isMatch = t.type === "match";
+      const isTermMatch = t.type === "termMatch";
 
-      const thumb = el("div", isMatch ? "template-card-thumb match-thumb" : "template-card-thumb");
-      if (isMatch) { thumb.innerHTML = `<span style="font-size:2rem">🔀</span>`; }
+      const thumb = el("div", (isMatch||isTermMatch) ? "template-card-thumb match-thumb" : "template-card-thumb");
+      if (isTermMatch) { thumb.innerHTML = `<span style="font-size:2rem">📚</span>`; }
+      else if (isMatch) { thumb.innerHTML = `<span style="font-size:2rem">🔀</span>`; }
       else if (t.imageData) { const img=el("img",null,{src:t.imageData,alt:t.name}); thumb.appendChild(img); }
       else { thumb.textContent="🖼️"; }
 
       const h3 = el("h3",null,{text:t.name});
-      const badge = el("span", isMatch?"badge badge-lavender":"badge badge-coral", {text: isMatch?"Match":"Diagram"});
+      const badge = el("span", (isMatch||isTermMatch)?"badge badge-lavender":"badge badge-coral", {text: isTermMatch?"Terms":isMatch?"Match":"Diagram"});
       badge.style.marginBottom="4px";
-      const p = el("p",null,{text: isMatch ? `${t.columns.length} cols · ${t.rows.length} rows` : `${t.pins.length} label${t.pins.length!==1?"s":""}`});
+      const p = el("p",null,{text: isTermMatch ? `${t.terms.length} term${t.terms.length!==1?"s":""} · ${t.gridCols}×${t.gridRows} tiles` : isMatch ? `${t.columns.length} cols · ${t.rows.length} rows` : `${t.pins.length} label${t.pins.length!==1?"s":""}`});
 
       const actions = el("div","template-card-actions");
       const btnQuiz = el("button","btn btn-primary btn-sm",{text:"▶ Quiz"});
-      btnQuiz.onclick = e => { e.stopPropagation(); if(isMatch) startMatchQuiz(t); else { state.quizTemplate=t; navigate("quizSetup"); } };
+      btnQuiz.onclick = e => { e.stopPropagation(); if(isTermMatch) openTermSetup(t); else if(isMatch) startMatchQuiz(t); else { state.quizTemplate=t; navigate("quizSetup"); } };
       const btnEdit = el("button","btn btn-ghost btn-sm",{text:"✏ Edit"});
       btnEdit.onclick = e => {
         e.stopPropagation();
-        if (isMatch) {
+        if (isTermMatch) {
+          state.termCreator = { template:t, name:t.name, gridCols:t.gridCols||2, gridRows:t.gridRows||3, terms:t.terms.map(pair=>({...pair})) };
+          navigate("termCreator");
+        } else if (isMatch) {
           state.matchCreator = { template:t, name:t.name, numCols:t.columns.length, numRows:t.rows.length, headers:[...t.columns], cells:t.rows.map(r=>r.map(c=>({...c}))) };
           navigate("matchCreator");
         } else {
@@ -407,23 +440,25 @@ function renderHome() {
     state.defaultTemplates.forEach(t => {
       const card = el("div","template-card");
       const isMatch = t.type === "match";
+      const isTermMatch = t.type === "termMatch";
 
-      const thumb = el("div", isMatch ? "template-card-thumb match-thumb" : "template-card-thumb");
-      if (isMatch) { thumb.innerHTML = `<span style="font-size:2rem">🔀</span>`; }
+      const thumb = el("div", (isMatch||isTermMatch) ? "template-card-thumb match-thumb" : "template-card-thumb");
+      if (isTermMatch) { thumb.innerHTML = `<span style="font-size:2rem">📚</span>`; }
+      else if (isMatch) { thumb.innerHTML = `<span style="font-size:2rem">🔀</span>`; }
       else if (t.imageData) { const img=el("img",null,{src:t.imageData,alt:t.name}); thumb.appendChild(img); }
       else { thumb.textContent="🖼️"; }
 
       const badgeRow = el("div","row",{}); badgeRow.style.gap="6px"; badgeRow.style.marginBottom="4px";
-      const typeBadge = el("span", isMatch?"badge badge-lavender":"badge badge-coral", {text: isMatch?"Match":"Diagram"});
+      const typeBadge = el("span", (isMatch||isTermMatch)?"badge badge-lavender":"badge badge-coral", {text: isTermMatch?"Terms":isMatch?"Match":"Diagram"});
       const defBadge = el("span","badge badge-sage",{text:"Default"});
       badgeRow.append(typeBadge, defBadge);
 
       const h3 = el("h3",null,{text:t.name});
-      const p = el("p",null,{text: isMatch ? `${t.columns.length} cols · ${t.rows.length} rows` : `${t.pins.length} label${t.pins.length!==1?"s":""}`});
+      const p = el("p",null,{text: isTermMatch ? `${t.terms.length} term${t.terms.length!==1?"s":""} · ${t.gridCols}×${t.gridRows} tiles` : isMatch ? `${t.columns.length} cols · ${t.rows.length} rows` : `${t.pins.length} label${t.pins.length!==1?"s":""}`});
 
       const actions = el("div","template-card-actions");
       const btnQuiz = el("button","btn btn-primary btn-sm",{text:"▶ Quiz"});
-      btnQuiz.onclick = e => { e.stopPropagation(); if(isMatch) startMatchQuiz(t); else { state.quizTemplate=t; navigate("quizSetup"); } };
+      btnQuiz.onclick = e => { e.stopPropagation(); if(isTermMatch) openTermSetup(t); else if(isMatch) startMatchQuiz(t); else { state.quizTemplate=t; navigate("quizSetup"); } };
       // Copy to My Templates button
       const btnCopy = el("button","btn btn-ghost btn-sm",{text:"＋ Copy"});
       btnCopy.title = "Copy to My Templates";
@@ -814,6 +849,59 @@ function saveMatchTemplate() {
   };
   const idx=state.templates.findIndex(t=>t.id===tpl.id);
   if(idx>=0) state.templates[idx]=tpl; else state.templates.push(tpl);
+  saveTemplates(state.templates); navigate("home");
+}
+
+// ─── Terms & Definitions Creator ─────────────────────────────────────────────
+
+function renderTermCreator() {
+  const tc=state.termCreator;
+  const wrap=el("div");
+  const topbar=el("div","topbar");
+  const btnBack=el("button","btn btn-ghost btn-sm",{text:"← Back"}); btnBack.onclick=()=>navigate("home");
+  const h2=el("h2",null,{text:tc.template?"Edit Terms & Definitions":"New Terms & Definitions"});
+  const btnSave=el("button","btn btn-primary",{text:"Save Template"}); btnSave.onclick=saveTermTemplate;
+  topbar.append(btnBack,h2,btnSave); wrap.appendChild(topbar);
+
+  const settings=el("div","card term-settings-card");
+  const nameWrap=el("div","col flex1"); nameWrap.append(el("div","section-label",{text:"Template Name"}));
+  const name=el("input","input",{type:"text",placeholder:"e.g. Cardiac Medications",value:tc.name});
+  name.oninput=e=>tc.name=e.target.value; nameWrap.appendChild(name);
+  const gridWrap=el("div","term-grid-size");
+  gridWrap.appendChild(el("div","section-label",{text:"Tile Grid (1–10 × 1–10)"}));
+  const gridInputs=el("div","row mt8");
+  [["Columns","gridCols"],["Rows","gridRows"]].forEach(([label,key])=>{
+    const field=el("label","term-dimension"); field.appendChild(el("span",null,{text:label}));
+    const input=el("input","input",{type:"number",min:"1",max:"10",value:String(tc[key])});
+    input.oninput=e=>{tc[key]=Math.max(1,Math.min(10,parseInt(e.target.value)||1));}; field.appendChild(input); gridInputs.appendChild(field);
+  });
+  gridWrap.appendChild(gridInputs); settings.append(nameWrap,gridWrap); wrap.appendChild(settings);
+
+  const card=el("div","card mt16");
+  const heading=el("div","row"); heading.append(el("div","section-label",{text:"Terms and Definitions"}));
+  const count=el("span","text-muted",{text:`${tc.terms.length}/100 pairs`}); count.style.marginLeft="auto"; heading.appendChild(count); card.appendChild(heading);
+  const list=el("div","term-editor-list mt16");
+  tc.terms.forEach((pair,index)=>{
+    const row=el("div","term-editor-row");
+    const number=el("div","match-row-num",{text:String(index+1)});
+    const term=el("textarea","match-cell-input",{placeholder:"Generic name / term"}); term.rows=2; term.value=pair.term; term.oninput=e=>pair.term=e.target.value;
+    const definition=el("textarea","match-cell-input",{placeholder:"Brand name / definition"}); definition.rows=2; definition.value=pair.definition; definition.oninput=e=>pair.definition=e.target.value;
+    const remove=el("button","btn btn-danger btn-sm",{text:"×"}); remove.title="Remove pair"; remove.onclick=()=>{tc.terms.splice(index,1); render();};
+    row.append(number,term,definition,remove); list.appendChild(row);
+  });
+  card.appendChild(list);
+  const add=el("button","btn btn-ghost mt16",{text:"＋ Add Pair"}); add.disabled=tc.terms.length>=100;
+  add.onclick=()=>{tc.terms.push(...initTermPairs(1));render();}; card.appendChild(add); wrap.appendChild(card);
+  return wrap;
+}
+
+function saveTermTemplate() {
+  const tc=state.termCreator, name=tc.name.trim();
+  if(!name){alert("Give your template a name.");return;}
+  if(tc.terms.length<2){alert("Add at least two term-definition pairs.");return;}
+  for(let i=0;i<tc.terms.length;i++) if(!tc.terms[i].term.trim()||!tc.terms[i].definition.trim()) { alert(`Pair ${i+1} needs both a term and a definition.`); return; }
+  const tpl={id:tc.template?.id||generateId(),type:"termMatch",name,gridCols:tc.gridCols,gridRows:tc.gridRows,terms:tc.terms.map(p=>({...p,term:p.term.trim(),definition:p.definition.trim()}))};
+  const idx=state.templates.findIndex(t=>t.id===tpl.id); if(idx>=0) state.templates[idx]=tpl; else state.templates.push(tpl);
   saveTemplates(state.templates); navigate("home");
 }
 
@@ -1290,6 +1378,159 @@ function checkMatchAnswers() {
     result.push(rowCorrect);
   }
   mq.checkResult=result; mq.showWrong=false; render();
+}
+
+// ─── Terms & Definitions Quiz ────────────────────────────────────────────────
+
+function openTermSetup(template) {
+  state.termSetup={template,selectedIds:new Set(template.terms.map(pair=>pair.id)),mode:"round",gridCols:template.gridCols||2,gridRows:template.gridRows||3,showSelection:false};
+  navigate("termSetup");
+}
+
+function renderTermSetup() {
+  const ts=state.termSetup, template=ts.template;
+  const wrap=el("div");
+  const topbar=el("div","topbar");
+  const back=el("button","btn btn-ghost btn-sm",{text:"← Home"}); back.onclick=()=>navigate("home");
+  topbar.append(back,el("h2",null,{text:`Practice — ${template.name}`})); wrap.appendChild(topbar);
+
+  const modeCard=el("div","card"); modeCard.appendChild(el("div","section-label",{text:"Practice Mode"}));
+  const modes=[
+    ["round","One Round","Practice the selected terms once, without repopulating."],
+    ["complete","Practice All","Practice every selected term once, with a fresh definition grid for each term."],
+    ["indefinite","Indefinite","Keep receiving a fresh shuffled pass through the selected terms until you stop."]
+  ];
+  const options=el("div","term-mode-options mt16");
+  modes.forEach(([value,label,description])=>{
+    const option=el("button",`term-mode-option${ts.mode===value?" selected":""}`);
+    option.innerHTML=`<strong>${label}</strong><span>${description}</span>`;
+    option.onclick=()=>{ts.mode=value;render();}; options.appendChild(option);
+  });
+  modeCard.appendChild(options);
+
+  const gridSize=el("div","term-grid-size mt16");
+  gridSize.appendChild(el("div","section-label",{text:"Quiz Tile Grid Override"}));
+  const gridInputs=el("div","row mt8");
+  [["Columns","gridCols"],["Rows","gridRows"]].forEach(([label,key])=>{
+    const field=el("label","term-dimension"); field.appendChild(el("span",null,{text:label}));
+    const input=el("input","input",{type:"number",min:"1",max:"10",value:String(ts[key])});
+    const updateGrid=e=>{ts[key]=Math.max(1,Math.min(10,parseInt(e.target.value)||1)); gridReadout.textContent=`This quiz: ${ts.gridCols} × ${ts.gridRows} definitions`;};
+    input.oninput=updateGrid; input.onchange=updateGrid; field.appendChild(input); gridInputs.appendChild(field);
+  });
+  const gridReadout=el("div","text-muted mt8",{text:`This quiz: ${ts.gridCols} × ${ts.gridRows} definitions`});
+  gridSize.append(gridInputs,gridReadout); modeCard.appendChild(gridSize); wrap.appendChild(modeCard);
+
+  const selectionToggle=el("button","btn btn-ghost mt16",{text:ts.showSelection?"− Hide Practice Selection":"＋ Practice a Selection"});
+  selectionToggle.onclick=()=>{ts.showSelection=!ts.showSelection;render();}; wrap.appendChild(selectionToggle);
+  if(ts.showSelection) {
+    const selectionCard=el("div","card mt16");
+    const selectionHead=el("div","row"); selectionHead.appendChild(el("div","section-label",{text:"Practice Selection"}));
+    const all=el("button","btn btn-ghost btn-sm",{text:"Toggle All"}); all.onclick=()=>{ts.selectedIds=ts.selectedIds.size===template.terms.length?new Set():new Set(template.terms.map(pair=>pair.id));render();}; selectionHead.appendChild(all);
+    selectionCard.appendChild(selectionHead);
+    const selection=el("div","term-selection-grid mt16");
+    template.terms.forEach((pair,index)=>{
+      const label=el("label",`term-selection-item${ts.selectedIds.has(pair.id)?" selected":""}`);
+      const checkbox=el("input",null,{type:"checkbox"}); checkbox.checked=ts.selectedIds.has(pair.id);
+      checkbox.onchange=()=>{checkbox.checked?ts.selectedIds.add(pair.id):ts.selectedIds.delete(pair.id);render();};
+      label.append(checkbox,el("span",null,{text:`${index+1}. ${pair.term} → ${pair.definition}`})); selection.appendChild(label);
+    });
+    selectionCard.appendChild(selection); wrap.appendChild(selectionCard);
+  }
+  const actions=el("div","match-action-bar");
+  const selectedTerms=ts.showSelection?template.terms.filter(pair=>ts.selectedIds.has(pair.id)):template.terms;
+  const start=el("button","btn btn-primary",{text:"▶ Start Practice"}); start.disabled=selectedTerms.length<2;
+  start.onclick=()=>startTermQuiz(template,{scopeTerms:selectedTerms,mode:ts.mode,gridCols:ts.gridCols,gridRows:ts.gridRows}); actions.appendChild(start); wrap.appendChild(actions);
+  return wrap;
+}
+
+function startTermQuiz(template, {scopeTerms=template.terms, mode="round", practice=false, gridCols=template.gridCols||2, gridRows=template.gridRows||3}={}) {
+  state.termQuiz={template,scopeTerms:[...scopeTerms],queue:shuffle([...scopeTerms]),mode,gridCols,gridRows,currentTerm:null,definitionOptions:[],feedback:null,results:{},practice,completed:false};
+  state.screen="termQuiz";
+  nextTermQuestion();
+}
+
+function nextTermQuestion() {
+  const tq=state.termQuiz;
+  if(!tq.queue.length) {
+    if(tq.mode==="indefinite") { tq.queue=shuffle([...tq.scopeTerms]); tq.results={}; }
+    else { finishTermQuiz(); return; }
+  }
+  tq.currentTerm=tq.queue.shift();
+  const capacity=tq.gridCols*tq.gridRows;
+  const decoys=shuffle(tq.scopeTerms.filter(pair=>pair.id!==tq.currentTerm.id)).slice(0,Math.max(0,capacity-1));
+  tq.definitionOptions=shuffle([tq.currentTerm,...decoys]);
+  tq.feedback=null;
+  render();
+}
+
+function answerTermDefinition(definitionId) {
+  const tq=state.termQuiz;
+  if(tq.feedback||!tq.currentTerm) return;
+  const correct=definitionId===tq.currentTerm.id;
+  tq.results[tq.currentTerm.id]=correct;
+  tq.feedback={correct,selectedId:definitionId};
+  render();
+}
+
+function finishTermQuiz() {
+  const tq=state.termQuiz;
+  tq.completed=true; tq.currentTerm=null; tq.definitionOptions=[];
+  const correct=Object.values(tq.results).filter(Boolean).length;
+  saveTermMatchScore(tq.template.id,{correct,total:tq.scopeTerms.length,percent:Math.round(correct/tq.scopeTerms.length*100),date:new Date().toISOString()});
+  render();
+}
+
+function renderTermQuiz() {
+  const tq=state.termQuiz, {template,currentTerm,definitionOptions,feedback,completed}=tq;
+  const scoreHistory=loadTermMatchScores()[template.id]||[];
+  const answered=Object.keys(tq.results).length;
+  const wrap=el("div");
+  const topbar=el("div","topbar");
+  const back=el("button","btn btn-ghost btn-sm",{text:"← Home"}); back.onclick=()=>navigate("home");
+  topbar.append(back,el("h2",null,{text:template.name})); wrap.appendChild(topbar);
+  const instruction=el("div","quiz-description-card");
+  instruction.textContent=tq.practice?"Practice Incorrect: answer each missed term once.":tq.mode==="indefinite"?"Indefinite practice: the selected terms reshuffle after each completed pass.":"Match the term on the left to a definition. Feedback appears immediately.";
+  wrap.appendChild(instruction);
+
+  if(!completed) {
+    wrap.appendChild(el("div","text-muted mt16",{text:`Term ${answered+1} of ${tq.scopeTerms.length} · ${tq.gridCols} × ${tq.gridRows} definition grid`}));
+    const board=el("div","term-match-board mt8");
+    const termList=el("section","term-tile-list"); termList.appendChild(el("h3","term-list-heading",{text:"Term"}));
+    termList.appendChild(el("div","term-prompt-tile",{text:currentTerm.term}));
+
+    const definitionList=el("section","term-tile-list"); definitionList.appendChild(el("h3","term-list-heading",{text:"Definitions"}));
+    const defs=el("div","term-tile-grid"); defs.style.cssText=`--term-columns:${tq.gridCols}; --term-rows:${tq.gridRows}`;
+    definitionOptions.forEach(pair=>{
+      const selected=feedback?.selectedId===pair.id;
+      const isCorrect=feedback&&pair.id===currentTerm.id;
+      const isWrong=selected&&!feedback.correct;
+      const tile=el("button",`term-tile term-tile-definition${selected?" selected":""}${isCorrect?" result-correct":""}${isWrong?" result-wrong":""}`,{text:pair.definition});
+      tile.disabled=Boolean(feedback);
+      tile.onclick=()=>answerTermDefinition(pair.id);
+      defs.appendChild(tile);
+    });
+    definitionList.appendChild(defs); board.append(termList,definitionList); wrap.appendChild(board);
+
+    const actions=el("div","match-action-bar");
+    if(feedback) {
+      actions.append(el("div",`feedback ${feedback.correct?"correct":"wrong"}`,{text:feedback.correct?"✓ Correct":"✕ Incorrect"}));
+      const next=el("button","btn btn-primary",{text:"Next Term →"}); next.onclick=nextTermQuestion; actions.appendChild(next);
+    }
+    const reset=el("button","btn btn-ghost",{text:"↺ Restart"}); reset.onclick=()=>startTermQuiz(template,{scopeTerms:tq.scopeTerms,mode:tq.mode,practice:tq.practice,gridCols:tq.gridCols,gridRows:tq.gridRows}); actions.appendChild(reset);
+    wrap.appendChild(actions);
+  } else {
+    const correct=Object.values(tq.results).filter(Boolean).length;
+    const wrongTerms=tq.scopeTerms.filter(pair=>tq.results[pair.id]===false);
+    const banner=el("div",`match-result-banner ${wrongTerms.length?"has-wrong":"all-correct"} mt16`);
+    const message=wrongTerms.length?"<div style=\"font-weight:800;font-size:1.1rem\">Pass complete</div><div style=\"color:var(--text-muted);font-size:.9rem;margin-top:4px\">Your result has been saved on this device.</div>":"<div style=\"font-weight:800;font-size:1.1rem\">🎉 Perfect pass!</div><div style=\"color:var(--text-muted);font-size:.9rem;margin-top:4px\">Your result has been saved on this device.</div>";
+    banner.append(el("div","banner-score",{text:`${correct}/${tq.scopeTerms.length}`}),el("div",null,{html:message})); wrap.appendChild(banner);
+    const actions=el("div","match-action-bar");
+    if(wrongTerms.length) { const practice=el("button","btn btn-primary",{text:"🔁 Practice Incorrect"}); practice.onclick=()=>startTermQuiz(template,{scopeTerms:wrongTerms,practice:true,gridCols:tq.gridCols,gridRows:tq.gridRows}); actions.appendChild(practice); }
+    const again=el("button","btn btn-sage",{text:"↺ Try Again"}); again.onclick=()=>startTermQuiz(template,{scopeTerms:tq.scopeTerms,mode:tq.mode,gridCols:tq.gridCols,gridRows:tq.gridRows});
+    const home=el("button","btn btn-ghost",{text:"🏠 Home"}); home.onclick=()=>navigate("home"); actions.append(again,home); wrap.appendChild(actions);
+  }
+  if(scoreHistory.length) wrap.appendChild(el("div","term-score-history mt16",{text:`Previous scores: ${scoreHistory.slice(-5).map(score=>`${score.correct}/${score.total}`).join(" · ")}`}));
+  return wrap;
 }
 
 // ─── Default Templates ────────────────────────────────────────────────────────
